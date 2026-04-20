@@ -1,4 +1,4 @@
-# Claim Alert Rules — Prototype
+<img width="1464" height="769" alt="image" src="https://github.com/user-attachments/assets/0123e53d-e639-442a-a60a-e386fc7eec90" /># Claim Alert Rules — Prototype
 
 ## Running locally
 
@@ -16,4 +16,6 @@ React prototype for the **Loyalife Partners & Promotions** alert & auto-approval
 - **`active-context.md`** — Source-of-truth PM document: decisions, open questions, data model, next actions, field catalogue.
 
 
-<img width="1466" height="800" alt="image" src="https://github.com/user-attachments/assets/5a917de2-8bdb-4602-969b-d020eaa8d5a6" />
+<img width="1464" height="769" alt="image" src="https://github.com/user-attachments/assets/a78d29ec-999f-47ee-b8c0-3ae5159ecac6" />
+
+
