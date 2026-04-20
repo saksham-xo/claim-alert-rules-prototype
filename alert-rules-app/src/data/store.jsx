@@ -3,7 +3,7 @@ import { useState, createContext, useContext } from 'react';
 const StoreContext = createContext();
 
 const initialRules = [
-  { id: 'RULE-001', name: 'High value invoice', desc: 'Flag invoices exceeding amount threshold for review', behavior: 'flag', groups: [[{ f: 'totalAmount', op: 'gte', val: '50000' }]], acts: ['flag_invoice', 'require_review'], on: true, by: 'Admin', at: '15 Mar, 2026' },
+  { id: 'RULE-001', name: 'High value invoice', desc: 'Flag invoices exceeding amount threshold for review', behavior: 'flag', groups: [[{ f: 'totalAmount', op: 'gte', val: '' }]], acts: ['flag_invoice', 'require_review'], on: false, by: 'Admin', at: '15 Mar, 2026' },
 ];
 
 const initialInvoices = [

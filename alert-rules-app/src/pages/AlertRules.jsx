@@ -35,6 +35,9 @@ export default function AlertRules() {
   const navigate = useNavigate();
   const { rules, toggleRule, saveRule, showToast, devNotes } = useStore();
 
+  const ruleHasEmptyCondition = (rule) =>
+    rule.groups.some(g => g.some(c => !noValueOps.includes(c.op) && !c.val));
+
   const [drafts, setDrafts] = useState({});
   const [pendingConfirm, setPendingConfirm] = useState(null);
 
@@ -59,6 +62,20 @@ export default function AlertRules() {
       setDrafts(prev => { const next = { ...prev }; delete next[k]; return next; });
       return;
     }
+    const field = fieldIndex[rule.groups[gi][ci].f];
+    if (field?.numeric && draftVal !== '' && !(parseFloat(draftVal) > 0)) {
+      showToast('Value must be greater than zero');
+      setDrafts(prev => { const next = { ...prev }; delete next[k]; return next; });
+      return;
+    }
+    if (!rule.on) {
+      const nextGroups = rule.groups.map((g, i) =>
+        i !== gi ? g : g.map((c, j) => j === ci ? { ...c, val: draftVal } : c)
+      );
+      saveRule({ ...rule, groups: nextGroups });
+      setDrafts(prev => { const next = { ...prev }; delete next[k]; return next; });
+      return;
+    }
     setPendingConfirm({ kind: 'threshold', rule, gi, ci, newVal: draftVal, originalVal });
   };
 
@@ -67,7 +84,20 @@ export default function AlertRules() {
   };
 
   const handleToggleRequest = (rule) => {
+    // Activating a rule that has no threshold yet is a pending state —
+    // audit fires when the threshold is saved, not on the toggle itself.
+    if (!rule.on && ruleHasEmptyCondition(rule)) {
+      toggleRule(rule.id);
+      return;
+    }
     setPendingConfirm({ kind: 'toggle', rule });
+  };
+
+  const handleCancelDraft = (rule, gi, ci) => {
+    clearDraft(rule, gi, ci);
+    if (rule.on && ruleHasEmptyCondition(rule)) {
+      toggleRule(rule.id);
+    }
   };
 
   const acceptPending = () => {
@@ -114,7 +144,9 @@ export default function AlertRules() {
           <ul className="flex flex-col gap-1.5 list-disc pl-4">
             <li><strong>Built-in alerts</strong> ship enabled by default. They can only be disabled from the backend — no UI path to toggle them off. The card's toggle is display-only.</li>
             <li>The <strong>Edit Claims Settings</strong> permission gates exactly two actions on this page: toggling custom alerts on/off, and updating the threshold value. Nothing else on this screen is editable.</li>
-            <li><strong>Audit trail:</strong> every custom-alert toggle and every threshold value change is recorded. The "Save Alert Changes" modal fires before the change persists — Accept commits + writes the audit entry; Cancel reverts and writes nothing. A silent revert (user types then restores the original value) also writes nothing.</li>
+            <li><strong>Audit trail:</strong> every custom-alert state change is recorded — toggling an existing configured rule on/off, and threshold changes on an active rule. The "Save Alert Changes" modal fires before an audit-worthy change persists: Accept commits + writes the audit entry; Cancel reverts and writes nothing.</li>
+            <li><strong>Toggle first, then set threshold.</strong> The threshold input is disabled until the rule is toggled on. When activating a rule that has no threshold yet, the toggle flips on silently — activation is a <em>pending</em> state until the threshold is saved, at which point one audit entry covers both. Clicking Cancel in that pending state reverts the toggle back off; the session leaves no trace.</li>
+            <li><strong>Threshold values</strong> must be greater than zero. Decimals allowed.</li>
             <li><strong>Threshold change impact — alerts are frozen at submission.</strong> Changing a threshold does not retroactively re-flag or un-flag existing claims:
               <ul className="list-[circle] pl-4 mt-1 flex flex-col gap-0.5">
                 <li><em>Decrease</em> (e.g. 50k → 20k): past ₹40k claims stay unflagged. Only claims submitted after the change get evaluated at the new 20k threshold.</li>
@@ -178,25 +210,53 @@ export default function AlertRules() {
                             const field = fieldIndex[c.f];
                             const isNoValue = noValueOps.includes(c.op);
                             const opMatch = field?.ops.find(o => o.v === c.op);
+                            const k = draftKey(r.id, gi, ci);
+                            const hasDraft = k in drafts && drafts[k] !== (c.val ?? '');
+                            const inputDisabled = !r.on;
                             return (
-                              <div key={`${gi}-${ci}`} className="grid grid-cols-3 gap-3">
-                                <div className="px-3 py-2.5 border border-border rounded-lg text-sm text-text bg-bg/50 cursor-not-allowed">{field?.label || c.f}</div>
-                                <div className="px-3 py-2.5 border border-border rounded-lg text-sm text-text bg-bg/50 cursor-not-allowed">{opMatch?.l || c.op}</div>
-                                {isNoValue ? (
-                                  <div className="px-3 py-2.5 border border-border rounded-lg text-sm text-text-secondary bg-bg/30 italic">No value needed</div>
-                                ) : (
-                                  <div className="relative">
-                                    <input
-                                      type={field?.numeric ? 'number' : 'text'}
-                                      value={valueFor(r, gi, ci)}
-                                      onChange={e => handleDraft(r, gi, ci, e.target.value)}
-                                      onBlur={() => handleCommit(r, gi, ci)}
-                                      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                                      placeholder="Value"
-                                      title="Editable — press Enter or click away to save"
-                                      className="w-full px-3 py-2.5 pr-9 border border-border rounded-lg text-sm text-text bg-surface outline-none focus:border-primary placeholder:text-[#BDC5DA]"
-                                    />
-                                    <Pencil size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#868CCC] pointer-events-none" />
+                              <div key={`${gi}-${ci}`} className="flex flex-col gap-2">
+                                <div className="grid grid-cols-3 gap-3">
+                                  <div className="px-3 py-2.5 border border-border rounded-lg text-sm text-text bg-bg/50 cursor-not-allowed">{field?.label || c.f}</div>
+                                  <div className="px-3 py-2.5 border border-border rounded-lg text-sm text-text bg-bg/50 cursor-not-allowed">{opMatch?.l || c.op}</div>
+                                  {isNoValue ? (
+                                    <div className="px-3 py-2.5 border border-border rounded-lg text-sm text-text-secondary bg-bg/30 italic">No value needed</div>
+                                  ) : (
+                                    <div className="relative">
+                                      <input
+                                        type={field?.numeric ? 'number' : 'text'}
+                                        {...(field?.numeric ? { min: '0.01', step: 'any' } : {})}
+                                        required
+                                        disabled={inputDisabled}
+                                        value={valueFor(r, gi, ci)}
+                                        onChange={e => handleDraft(r, gi, ci, e.target.value)}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') { e.preventDefault(); handleCommit(r, gi, ci); }
+                                          else if (e.key === 'Escape') { e.preventDefault(); handleCancelDraft(r, gi, ci); }
+                                        }}
+                                        placeholder="Value *"
+                                        title={inputDisabled ? 'Enable this alert to set a threshold value' : 'Enter a value and click Save'}
+                                        className={`w-full px-3 py-2.5 pr-9 border border-border rounded-lg text-sm text-text outline-none focus:border-primary placeholder:text-[#BDC5DA] ${inputDisabled ? 'bg-bg/50 cursor-not-allowed text-text-secondary' : 'bg-surface'}`}
+                                      />
+                                      {!inputDisabled && (
+                                        <Pencil size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#868CCC] pointer-events-none" />
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                {hasDraft && !inputDisabled && (
+                                  <div className="flex justify-end gap-2">
+                                    <button
+                                      onClick={() => handleCancelDraft(r, gi, ci)}
+                                      className="text-primary px-3 py-1.5 rounded text-sm font-medium hover:bg-bg cursor-pointer"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      onClick={() => handleCommit(r, gi, ci)}
+                                      className="bg-primary text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-[#354499] cursor-pointer"
+                                    >
+                                      Save
+                                    </button>
                                   </div>
                                 )}
                               </div>
@@ -249,9 +309,9 @@ export default function AlertRules() {
   );
 }
 
-function Toggle({ checked, onChange, disabled = false }) {
+function Toggle({ checked, onChange, disabled = false, title }) {
   return (
-    <label className={`relative inline-block w-9 h-5 shrink-0 mt-0.5 ${disabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}>
+    <label title={title} className={`relative inline-block w-9 h-5 shrink-0 mt-0.5 ${disabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}>
       <input
         type="checkbox"
         checked={checked}

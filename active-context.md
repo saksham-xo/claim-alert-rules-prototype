@@ -1,15 +1,17 @@
 # Active Context: Configurable Alert Rules for Invoice Claims
 > Single source of truth for session start. Updated EOD via 3-part protocol.
-> **Last updated:** 2026-04-17 (session 4)
+> **Last updated:** 2026-04-20 (session 5)
 
 ---
 
 ## Status
-**Phase:** Prototype — core flows built, iterating on UX polish
+**Phase:** Ship-prep — scoping down to a 5-day release. Cuts driven by "if it doesn't earn its keep by ship day, it goes."
+**Ship target:** 2026-04-25 (5 days from 2026-04-20)
 **Ticket:** GF-13430
 **React app:** `projects/partners-promotions/alert-rules-app/` (Vite + React + Tailwind v4)
 **Alerts Extended (frozen):** `AlertsExtended.jsx` — snapshot of Alerts page before simplification, saved at `/alerts-extended` for future scope
 **HTML prototype:** `prototypes/loyalife-alert-rules-prototype.html` (outdated, React app is primary)
+**Baseline commit for session 5:** `10313963a8e2b715dae0a7eda2a6fbb93337e44a` — everything after this SHA is ship-prep.
 
 ---
 
@@ -102,6 +104,17 @@ React app with the following pages:
 | 2026-04-17 (s4) | Attribute dropdown categorised: **GLOBAL ATTRIBUTES** + **MEMBER ATTRIBUTES** | Mirrors the Loyalife rule engine (see `lbmsqa.xoxotest.net/rule-engine` — Global Attributes + Member Attributes optgroups). Tagged Stockist sits at the end of Member Attributes (no separate Retailer category). Applied to both Alert and Approval builders. Globals stay claim-specific (Invoice Amount, Invoice Number, etc.) — platform globals like Product Code / Sub Product Code / Transaction Type were skipped for v1 since they don't fit invoice claims. |
 | 2026-04-17 (s4) | Member attributes visibility tied to platform toggle | Each custom member attribute in the platform's `Members → Manage Attributes` page has an **Include in member search & filters** toggle. When ON, the attribute surfaces in the rule-engine/alert/approval dropdown. Prototype hard-codes the full 9 "Include=ON" attributes (Relation Reference, Full Name, Email, Phone, Address, Gender, Date of Birth, Status, Preferred Language). Engineering: wire the existing toggle to the fields actually rendered by the condition builder's `fieldDefs` endpoint — no new toggle needed. |
 | 2026-04-17 (s4) | THEN block is read-only visual, not configurable (approval only) | Approval rule has exactly one outcome — auto-approve. No "set action" feature. THEN is shown purely to complete the IF/THEN mental model for authors and reviewers: "Invoice claim will be **auto-approved instantly**." Styled with neutral bg (same as IF container) + green THEN pill + green inline emphasis on the outcome phrase. Appears in Create, Edit, and View approve-rule pages. |
+| 2026-04-20 (s5) | **Ship in 5 days** — every change this session is a scope cut | Moving from open-ended prototype to a minimum releasable cut. Default rule: lock it, hide it, or delete it unless it's load-bearing for first release. Baseline for the cuts is commit `10313963a8e2b715dae0a7eda2a6fbb93337e44a`. |
+| 2026-04-20 (s5) | **Alerts frozen at submission time** — no retroactive re-evaluation | Threshold edits only affect *future* invoices. Old invoices keep the alerts they were stamped with at submission. Removed dynamic `evaluateGroups` path from both `Claims.jsx` and `InvoiceDetail.jsx`; source of truth is now `inv.alerts[]` filtered by active rule IDs. Prevents surprise retro-flags and makes the audit trail for threshold changes coherent. |
+| 2026-04-20 (s5) | **Built-in alerts are non-editable, non-toggleable** | Three defaults (Unable to fetch details, Line item sum mismatch, Duplicate invoice number) ship baked-in. Claims Settings shows them as locked cards with opacity 0.7 toggles and no edit path. Rationale: these either rely on cross-row checks (duplicate) or dataset-wide invariants the rule engine can't express cleanly. Leave self-serve for custom thresholds. |
+| 2026-04-20 (s5) | **Custom alert field + operator locked after creation. Only value editable.** | The alert's identity is defined by `field + operator`; the threshold is the knob that needs tuning. Unlocking the operator was tried in-session and reverted — drift risk ("High value invoice" flipped to `<=` no longer matches its name) outweighs the flexibility. To change field or operator, create a new alert. |
+| 2026-04-20 (s5) | **Condition value edits route through an audit confirm modal** | Explicit Save / Cancel buttons appear under the row once the draft differs from stored. Save (or Enter) prompts "This action will be recorded in the Audit Trail. Click 'Accept' to save your changes." Accept persists + toast; Cancel wipes the draft. On-blur does *not* commit — users were missing that the input saved silently. Applies on both the Claims Settings inline row and the standalone Edit page. |
+| 2026-04-20 (s5) | **Alert-row indicator on Claims list is for custom alerts only** | Built-ins never show the red ⚠ next to the amount. Reasoning: built-ins fire frequently (every OCR hiccup, every missing field) and would make the indicator meaningless as a "review this carefully" signal. They still surface inside the claim detail view. |
+| 2026-04-20 (s5) | **Alert banner colours = source coding** | Amber = built-in (info), red = custom (warning), green = none. Clear at a glance whether the flag is a platform-level check or a client-configured threshold. |
+| 2026-04-20 (s5) | **Alert banner shows name only; message dropped** | Settings page and invoice detail both show the same string (alert `name` / `ruleName`). Avoids the "settings says X, banner says Y" inconsistency we had with free-form `msg` fields. |
+| 2026-04-20 (s5) | **Naming standard: sentence case, everywhere user-visible** | Alert names, template titles, placeholders, dashboard rows. Matches the built-ins (which were already sentence case) and modern UI convention (Material, Apple HIG). User-created custom alert names are still free text, but demo/sample data enforces the convention. |
+| 2026-04-20 (s5) | **Confidence Score stripped from visible UI** | Column in Claims list, card + ring in invoice detail, and score row in auto-approval banner all removed. `ocrConfidence` stays on the invoice data model so rules can still reference it as a condition attribute — just not displayed. Reduces surface area for ship. |
+| 2026-04-20 (s5) | **Flagged tab removed from Claims list** | The red ⚠ row indicator + "All Status" tab cover the same need. Fewer tabs = less decision load on the reviewer. |
 
 ---
 
@@ -309,7 +322,79 @@ Fields grounded in what OCR extracts from physical invoices + platform data.
 - **RBAC update:** Added View / Edit / Create Auto-Approval permissions to Partners & Promotions group in RolePermissions. Updated dev notes table to show auto-approval role mapping (Program Manager = View only, Program Admin = full access — same pattern as alerts).
 - **Rules list column:** Auto-approval tab in Claims Settings now shows a "Min Scan Quality" column with a green `≥ N%` pill or `—` if unset.
 
-## Completed This Session (Session 4 — 2026-04-17, continued)
+## Completed This Session (Session 5 — 2026-04-20)
+
+> **Framing:** every edit in this session is a scope reduction aimed at shipping in 5 days (target 2026-04-25). Nothing net-new was added. Baseline for the cuts is commit `10313963a8e2b715dae0a7eda2a6fbb93337e44a`. The rule is simple: if a control, field, page section, or behaviour isn't load-bearing for the first release, it's gone or locked.
+
+### Claims Settings page (`AlertRules.jsx`) — split into Built-in vs Custom
+- **Built-in Alerts section** added. Three defaults, always-on, non-editable, no list icon on claims table:
+  - *Unable to fetch details* — "Fires when invoice details are missing or unreadable by OCR."
+  - *Line item sum mismatch* — existing description kept.
+  - *Duplicate invoice number* — existing description kept.
+- **Custom Alerts section** shows each configured rule as a card: toggle, name, description, and the condition row *inline*. Field label and operator are locked (read-only pills); only the value is editable.
+- **Inline edit → audit flow.** The value input is disabled until the rule is toggled on. Once editable, typing updates a local draft (keyed `ruleId:gi:ci`) and surfaces Save / Cancel buttons beneath the row. Save (or Enter) fires the confirm modal when draft ≠ stored: "This action will be recorded in the Audit Trail. Click 'Accept' to save your changes." Accept → `saveRule` + toast + clear draft. Cancel (or Escape) → draft wiped; if the stored value was still empty, the toggle also reverts back off so the rule never sits in an "on but empty" limbo. On-blur no longer auto-commits. Drafts are per-field, so multiple rows can be in-flight independently.
+- **Toggle-first activation, with pending state.** The threshold input is disabled until the rule is toggled on, and toggling on an *empty* rule flips silently (no audit modal). The subsequent threshold Save covers activation + threshold in one audit entry. Toggling a rule that already has a stored threshold still routes through the audit modal immediately.
+- View/Edit popover **removed** from each custom-alert row. The `/alerts/:id` and `/alerts/:id/edit` routes still exist but are no longer linked from the main surface.
+- RULE-002 (`Duplicate Invoice Number - INV-2026-05201`) retired; superseded by the built-in duplicate detection.
+
+### Edit Alert (`EditAlert.jsx`) — now reachable only by URL
+- Removed the **Alert ID** field from the details card.
+- Removed the **IF / AND / OR pill capsules** and the add-condition buttons from the conditions card.
+- Operator unlocked → immediately re-locked within the same session. Final state: **field locked, operator locked, only value editable.** Consistency with the main-page inline editor.
+- Audit-trail confirm modal fires on Save when the value changed (name/description-only edits save without the prompt).
+- **Description is now required** (label gets `*`, empty description blocks save with a toast).
+
+### View Alert (`ViewAlert.jsx`)
+- Entire **Flagged Invoices section** (donut + matched-invoices table) removed.
+- The **Shield header icon** removed — title, Active/Inactive pill, and description render flush-left.
+- Dead code cleared: `evaluateCond`, `DonutChart`, `evaluateGroups` import, `invoices`/`devNotes` destructure.
+
+### Claims list (`Claims.jsx`)
+- **Flagged tab removed.** Only *Pending Actions* and *All Status* remain.
+- **Confidence Score column removed** (header tooltip + cell + `Info` import).
+- Red ⚠ indicator on the amount cell appears **only for custom alerts** (`invAlerts.some(a => !a.system)`). Built-in alerts never show a row indicator.
+- Settings button → **icon-only** (label "Settings" dropped; `title` / `aria-label` preserved for accessibility; padding tightened to `p-2`).
+
+### Invoice detail (`InvoiceDetail.jsx`)
+- **ConfidenceScoreCard + ConfidenceRing deleted.** `AutoApprovalBanner` no longer renders the confidence score (only rule name + threshold).
+- **Alerts frozen at submission.** Dynamic re-evaluation (`evaluateGroups` + `evaluateCond`) removed here and in `Claims.jsx`. `allAlerts` now derives purely from `inv.alerts[]` filtered by `a.system || activeRuleIds.has(a.ruleId)`. Threshold edits no longer retroactively flag old invoices — a change from 50k → 20k leaves a pre-existing 40k invoice untouched.
+- **AlertBanner colour-coded** by `alert.system`: built-ins get amber (`bg-flag-bg` + `Info` icon), customs get red (`bg-block-bg` + `AlertTriangle` icon). "No alerts" banner stays green. Message (`alert.msg`) removed — only `ruleName` renders.
+- **Line Items empty state** — when `lineItems.length === 0`, the table header stays visible and the body is replaced with a `FileX` icon + **No Data Found** + "No records could be fetched during OCR process". Illustrates the "Unable to fetch details" built-in scenario.
+
+### Sample data rebuilt (`store.jsx`)
+Eight invoices now map 1:1 to the alert examples each page needs to demonstrate:
+
+| Claim | Scenario | Alert surface |
+|---|---|---|
+| 1257 — ₹78,500 | Custom alert (High value invoice) | Red ⚠ on list, red banner in detail |
+| 1209 — ₹5,200 | Built-in: Line item sum mismatch | Amber banner only |
+| 1195 — INV-…05201 | Built-in: Duplicate invoice number | Amber banner only |
+| 1190 — auto-approved | — | Green "No alerts" + auto-approval banner |
+| 1185 — ₹62,350 | Custom alert (High value invoice) | Red ⚠ on list, red banner in detail |
+| 1180 — INV-…05201 | Built-in: Duplicate invoice number (dup of 1195) | Amber banner only |
+| 1175 — empty line items | Built-in: Unable to fetch details | Amber banner + Line Items empty state |
+| 1170 — clean | — | Green "No alerts" |
+
+Old "Missing Invoice Number" / "Missing Retailer Name" system-level alerts gone. Partner + number pulsing-dot hints stay in `Claims.jsx` as UI affordances but no longer trigger on the sample set (all rows have values).
+
+### Design system nits
+- `--color-toggle-on: #3e94ff` added to `index.css` (`@theme`). All seven toggles migrated from `peer-checked:bg-primary` / `peer-checked:bg-success` → `peer-checked:bg-toggle-on`. Consistent toggle treatment regardless of semantic context.
+- Disabled/default-on toggles at **opacity 0.7** (was 0.8).
+
+### Naming — sentence case is now the standard
+Everywhere user-visible, alert and template names switched from Title Case to sentence case so the Claims Settings copy matches the invoice-view banners:
+- Rule names: *High value invoice*, *Duplicate invoice detection*, *Mismatched totals*, *Unauthorised distributor*, *OCR confidence low*, *Duplicate invoice number*.
+- RuleBuilder template titles: *Amount threshold*, *Duplicate detection*, *Distributor verification*, *Total mismatch*, *OCR quality check*, *Custom rule*.
+- Input placeholders + AlertDashboard sample rows updated in lockstep.
+- Built-in alert names (already sentence case) untouched.
+
+### Bugs squashed during the session
+- Importing `FileOff` from `lucide-react@1.8.0` (icon doesn't exist in this version) crashed the whole router. Swapped for `FileX`.
+- `Info` was removed from imports while still used by `AlertBanner` for built-in alerts — caused `/partner-promotions/invoice-management/6` (the empty-line-items invoice) to blank out. Re-added.
+
+---
+
+## Completed Previous Session (Session 4 — 2026-04-17, continued)
 
 ### Framework shift
 - **Alerts split into Default vs Configurable** (see Key Decisions). Default alerts cover dataset-wide invariants (missing fields, duplicate invoice number) that either need cross-row checks or universal coverage. Configurable alerts use the rule engine for thresholds and specific matches. Mental model now clearer for the tech handover.
@@ -335,19 +420,20 @@ Fields grounded in what OCR extracts from physical invoices + platform data.
 - **Experimental `PresenterNote` component** built and reverted in-session — Saksham opted to keep the prototype UI uncluttered. Pattern is available in git history if a future dry-run / walkthrough needs it.
 - **`Is Duplicate` operator** added to rule-engine dropdown then removed in same session, following the Default-vs-Configurable decision.
 
-## Next Actions (ordered)
-1. **Design the Default alerts surface.** With the split decision made, we need: (a) a read-only "Default alerts" section in Claims Settings showing which defaults are in force (for PM transparency), (b) how defaults surface on the claim's alert box (same banner treatment as configurable alerts? Different tag?). Without this, PMs won't know *why* a claim is flagged and will lose trust in the system.
-2. **Prioritise ingesting the 4 Lupin reference tables (Outlet Dump, Stockist Tagging, Catalogue, Uploaded Statements)** — concrete first slice of the custom-attrs infra. Each spreadsheet becomes a program-scoped lookup table; columns become rule fields. Ships faster than the fully-generic attr mapper and unblocks: Tagged Stockist (real semantics), Retailer Region/Beat, Outlet Type, Line Items In Catalogue, Brand/Molecule filters, Past Claim Count, Past Rejection Rate.
-3. **Custom member attributes → rule-field mapping (full infra story):** design the general mechanism for clients to register program-specific attributes beyond the initial 4 tables. The prototype's Member Attributes dropdown already shows the UX target; backend needs to wire the existing "Include in member search & filters" toggle to gate which attrs the rule engine lists.
-4. **Clean up alerts to match the OCR-only rule:** seed "Unauthorised Distributor" alert (RULE-003) uses a supplier authorised-list lookup that isn't OCR-derived. Either delete, mark as custom (pending attrs infra), or move to AlertsExtended. Audit AlertsExtended field list the same way.
-5. **Retire RULE-002 once Default duplicate detection lands.** Currently a per-invoice `equals` hack; superseded by the Default alert.
-6. **Invoice Age — resolve backend contract:** confirm which date Invoice Age is measured against (invoice date vs. claim submission date vs. today). Once confirmed, re-add to field list with a clear help tooltip.
-7. **Alert preview evaluation reconciliation:**
-   - Update `InvoiceDetail`/`Claims` `evaluateCond` logic for new operator keys (gte/lte/gt/lt instead of greater_than/less_than).
-   - Reconcile field keys: CreateAlert uses `lineItemsMismatch`/`ocrAmountMatch` but Claims.jsx + InvoiceDetail.jsx still reference old `totalsMismatch`/`ocrAmount`.
-8. **Auto-approval field data gap:** Invoices lack mock data for `stockistName`, `gstinVerified`, `poReference`, `lineItemsInCatalog`, `amountVariance`, and all the new member attributes. Preview can't evaluate rules using these fields. Either add mock fields to invoices OR explain the limitation on the preview UI.
-9. **Tech handover walkthrough** — present categorised attributes, Default vs Configurable framework, THEN block, IF pill placement. Post summary to GF-13430 on Jira.
-10. Walk through complete prototype with stakeholders.
+## Next Actions (ordered) — ship-prep for 2026-04-25
+
+1. **Update RBAC (`RolePermissions.jsx`) to match the new alert model.** Current role matrix still encodes the old "Create/Edit/View alerts" verbs, which assumed users author arbitrary rules with full operator/field freedom. Under the locked-field model, the useful permissions collapse to *View claims settings* and *Edit alert thresholds* (plus the existing auto-approval perms). Audit the permission list, drop Create-alert (no longer a supported action on the ship-cut UI), and reframe descriptions around threshold edits + audit logging. Double-check the "View Alerts" description still talks about flagged invoices even though the ViewAlert page has been stripped down.
+2. **Tech handover walkthrough.** Post the session-5 summary to GF-13430 so engineering knows what to build: built-in alerts (amber, locked), custom alerts (inline threshold edit + audit modal), frozen-at-submission alert evaluation, sentence-case naming, removed surfaces (Confidence Score UI, Flagged tab, View-page stats, dynamic eval, Create-alert page).
+3. **Stakeholder walkthrough.** Demo the ship cut end-to-end (Claims list → invoice detail → Claims Settings → threshold edit with audit modal). Capture any last blockers before freeze.
+4. **Invoice Age — resolve backend contract.** Still unresolved from session 4. Needed for re-adding to the field list post-ship.
+
+### Post-ship backlog (parked)
+- Design the Default-alerts surface with richer metadata (session 4 item — partially addressed by built-in cards but full PM transparency view deferred).
+- Ingest the 4 Lupin reference tables → program-scoped rule fields.
+- Custom member attributes → rule-field mapping (full infra story).
+- Revisit whether Create-alert flow gets reinstated (currently the only way to add a new custom rule is via the seed data / direct route).
+- Retire dead code: `CreateAlert.jsx`, route entries for `/alerts/create`, `/alerts/:id`, `/alerts/:id/edit` once we confirm no URLs are bookmarked.
+- Clean up the dead `is_duplicate` branch in `ViewAlert.jsx` evaluator (carry-over).
 
 ---
 
@@ -416,21 +502,17 @@ alert-rules-app/src/
 
 **Key Loyalife colors:** Primary #3F51B5, Text #303E67, Border #E3EBF6, BG #F6FAFC, Flag #FF9800, Block #F44336, Success #4CAF50
 
-**RBAC permission keys (proposed):**
-- `viewAlerts` — View alerts list, alert details, and flagged invoices
-- `editAlerts` — Edit alert conditions, toggle alerts on/off (depends on View)
-- `createAlerts` — Create new alerts and duplicate existing ones (depends on View + Edit)
+**RBAC permission keys (session-5 ship cut — single consolidated toggle):**
+- `editClaimsSettings` — Edit custom alert thresholds and toggle alerts on/off. Will also cover auto-approval settings when that feature ships in a later release (no new permission key needed then).
 
-**Default role mapping for alert permissions:**
+*Removed in session 5:* separate `viewClaimsSettings`, `editAlertThresholds`, and `createAlerts` keys. One consolidated toggle replaces them. Custom alerts are seeded; only threshold value + on/off state are tunable. Built-in alerts are always on and can't be edited or toggled by any role.
+
+**Default role mapping:**
 
 | Permission | Client | Customer Executive | Program Manager | Program Admin |
 |---|---|---|---|---|
-| View Alerts | — | — | Yes | Yes |
-| Edit Alerts | — | — | — | Yes |
-| Create Alerts | — | — | — | Yes |
+| Edit Claims Settings | — | — | — | Yes |
 
-- **Client** — No alerts access. Alerts are operational, not client-facing.
-- **Customer Executive** — No alerts access. Member-facing role, doesn't manage claim processing rules.
-- **Program Manager** — View only. Alerts affect claim processing; changes need Program Admin oversight. Follows Approval Workflow pattern (Program Manager = Verify only).
-- **Program Admin** — Full access. Highest permissions across the platform.
-- **Archive permission** falls under Edit (modifying rule state).
+- **Client / Customer Executive** — No claims-settings access.
+- **Program Manager** — No. Threshold edits affect claim processing and need Program Admin oversight. Follows Approval Workflow pattern (Program Manager = Verify, Program Admin = Approve).
+- **Program Admin** — Full access.
