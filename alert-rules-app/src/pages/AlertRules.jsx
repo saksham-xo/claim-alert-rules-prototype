@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, AlertTriangle, Pencil } from 'lucide-react';
 import { useStore } from '../data/store';
 
 const numericOps = [
@@ -185,15 +185,19 @@ export default function AlertRules() {
                                 {isNoValue ? (
                                   <div className="px-3 py-2.5 border border-border rounded-lg text-sm text-text-secondary bg-bg/30 italic">No value needed</div>
                                 ) : (
-                                  <input
-                                    type={field?.numeric ? 'number' : 'text'}
-                                    value={valueFor(r, gi, ci)}
-                                    onChange={e => handleDraft(r, gi, ci, e.target.value)}
-                                    onBlur={() => handleCommit(r, gi, ci)}
-                                    onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                                    placeholder="Value"
-                                    className="px-3 py-2.5 border border-border rounded-lg text-sm text-text bg-surface outline-none focus:border-primary placeholder:text-[#BDC5DA]"
-                                  />
+                                  <div className="relative">
+                                    <input
+                                      type={field?.numeric ? 'number' : 'text'}
+                                      value={valueFor(r, gi, ci)}
+                                      onChange={e => handleDraft(r, gi, ci, e.target.value)}
+                                      onBlur={() => handleCommit(r, gi, ci)}
+                                      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                                      placeholder="Value"
+                                      title="Editable — press Enter or click away to save"
+                                      className="w-full px-3 py-2.5 pr-9 border border-border rounded-lg text-sm text-text bg-surface outline-none focus:border-primary placeholder:text-[#BDC5DA]"
+                                    />
+                                    <Pencil size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#868CCC] pointer-events-none" />
+                                  </div>
                                 )}
                               </div>
                             );
