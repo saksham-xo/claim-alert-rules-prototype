@@ -48,12 +48,7 @@ const permissionGroups = [
       { name: 'Approve Videos', desc: 'Review and approve partner videos', on: false },
       { name: 'Channel Partner Config', desc: 'Manage channel partner app configuration', on: true },
       { name: 'Gamification', desc: 'Create and manage gamification campaigns', on: false },
-      { name: 'View Alerts', desc: 'View alerts list, alert details, and flagged invoices', on: true, isNew: true },
-      { name: 'Edit Alerts', desc: 'Edit alert conditions, toggle alerts on/off', on: true, isNew: true },
-      { name: 'Create Alerts', desc: 'Create new alerts and duplicate existing ones', on: true, isNew: true },
-      { name: 'View Auto-Approval', desc: 'View auto-approval rules and their matching claims', on: true, isNew: true },
-      { name: 'Edit Auto-Approval', desc: 'Edit rule conditions, toggle on/off, reorder priority', on: false, isNew: true },
-      { name: 'Create Auto-Approval', desc: 'Create new auto-approval rules', on: false, isNew: true },
+      { name: 'Edit Claims Settings', desc: 'Edit claims processing settings and configurations.', on: true, isNew: true },
     ],
   },
   {
@@ -67,7 +62,7 @@ const permissionGroups = [
 ];
 
 export default function RolePermissions() {
-  const { devNotes, pmNotes } = useStore();
+  const { devNotes } = useStore();
   const [groups, setGroups] = useState(permissionGroups);
   const [expanded, setExpanded] = useState({ 'Partners & Promotions': true });
   const [roleName, setRoleName] = useState('Program Manager');
@@ -120,71 +115,14 @@ export default function RolePermissions() {
       {/* Dev note — role mapping */}
       {devNotes && (
         <div className="bg-[#E8F5E9] border border-[#A5D6A7] rounded-lg p-4 mb-6 text-[11px] text-[#1B5E20] leading-relaxed">
-          <span className="font-semibold text-[#2E7D32]">Dev Notes — Alert & Auto-Approval Permissions by Default Role:</span>
-          <table className="w-full mt-2 text-[11px]">
-            <thead>
-              <tr className="border-b border-[#A5D6A7]">
-                <th className="text-left py-1 font-semibold">Permission</th>
-                <th className="text-center py-1 font-semibold">Client</th>
-                <th className="text-center py-1 font-semibold">Customer Exec</th>
-                <th className="text-center py-1 font-semibold">Program Manager</th>
-                <th className="text-center py-1 font-semibold">Program Admin</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b border-[#C8E6C9]">
-                <td className="py-1">View Alerts</td>
-                <td className="text-center">—</td>
-                <td className="text-center">—</td>
-                <td className="text-center font-bold">Yes</td>
-                <td className="text-center font-bold">Yes</td>
-              </tr>
-              <tr className="border-b border-[#C8E6C9]">
-                <td className="py-1">Edit Alerts (toggle, edit conditions)</td>
-                <td className="text-center">—</td>
-                <td className="text-center">—</td>
-                <td className="text-center">—</td>
-                <td className="text-center font-bold">Yes</td>
-              </tr>
-              <tr className="border-b border-[#C8E6C9]">
-                <td className="py-1">Create Alerts</td>
-                <td className="text-center">—</td>
-                <td className="text-center">—</td>
-                <td className="text-center">—</td>
-                <td className="text-center font-bold">Yes</td>
-              </tr>
-              <tr className="border-b border-[#C8E6C9]">
-                <td className="py-1">View Auto-Approval</td>
-                <td className="text-center">—</td>
-                <td className="text-center">—</td>
-                <td className="text-center font-bold">Yes</td>
-                <td className="text-center font-bold">Yes</td>
-              </tr>
-              <tr className="border-b border-[#C8E6C9]">
-                <td className="py-1">Edit Auto-Approval (toggle, conditions, priority)</td>
-                <td className="text-center">—</td>
-                <td className="text-center">—</td>
-                <td className="text-center">—</td>
-                <td className="text-center font-bold">Yes</td>
-              </tr>
-              <tr>
-                <td className="py-1">Create Auto-Approval</td>
-                <td className="text-center">—</td>
-                <td className="text-center">—</td>
-                <td className="text-center">—</td>
-                <td className="text-center font-bold">Yes</td>
-              </tr>
-            </tbody>
-          </table>
-          <div className="mt-2 text-[10px]">
-            <strong>Rationale:</strong> Program Manager gets View only — alerts and auto-approval both affect claim processing, changes need Program Admin oversight. Follows Approval Workflow pattern (Program Manager = Verify, Program Admin = Approve). Auto-approval is higher-stakes than alerts (skips manual review entirely) — same gatekeeping is at least as important.
+          <span className="font-semibold text-[#2E7D32]">Dev Notes — Alert Permissions by Default Role:</span>
+          <div className="mt-2 text-[10px] leading-relaxed">
+            <strong>View access is open.</strong> Any user with access to Partners &amp; Promotions can open Claims Settings. Since it's the only place that explains what each alert actually checks. The claim detail view shows alert titles only (e.g. "High value invoice"), so without settings visibility reviewers can't decode why a claim was flagged.
+            <br /><br />
+            <strong>Edit is the permission.</strong> "Edit Claims Settings" controls writing only — toggling custom alerts on/off and updating threshold values. Program Admin gets it; Program Manager does not. Follows the Approval Workflow pattern (Program Manager = Verify, Program Admin = Approve).
+            <br /><br />
+            <strong>Built-in alerts</strong> (Unable to fetch details, Line item sum mismatch, Duplicate invoice number) are always on for every client. Disabling them requires a backend change — no UI path, regardless of permission.
           </div>
-        </div>
-      )}
-
-      {pmNotes && !devNotes && (
-        <div className="bg-[#FFF8E1] border border-[#FFE082] rounded-lg p-4 mb-6 text-[11px] text-[#5D4037] leading-relaxed">
-          <span className="font-semibold text-[#F57F17]">PM Note:</span> Should Program Manager get Edit (toggle on/off only) without full Create? Toggling is lower risk than creating. Keeping View-only for Program Manager is cleaner for v1.
         </div>
       )}
 
@@ -242,7 +180,7 @@ export default function RolePermissions() {
                     disabled={group.locked}
                     className="sr-only peer"
                   />
-                  <span className={`absolute inset-0 rounded-full transition-colors ${group.locked ? 'bg-gray-200' : 'bg-gray-300'} peer-checked:bg-primary`} />
+                  <span className={`absolute inset-0 rounded-full transition-colors ${group.locked ? 'bg-gray-200' : 'bg-gray-300'} peer-checked:bg-toggle-on`} />
                   <span className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4" />
                 </label>
 
@@ -283,7 +221,7 @@ export default function RolePermissions() {
                             disabled={perm.locked}
                             className="sr-only peer"
                           />
-                          <span className={`absolute inset-0 rounded-full transition-colors ${perm.locked ? 'bg-gray-200' : 'bg-gray-300'} peer-checked:bg-primary`} />
+                          <span className={`absolute inset-0 rounded-full transition-colors ${perm.locked ? 'bg-gray-200' : 'bg-gray-300'} peer-checked:bg-toggle-on`} />
                           <span className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4" />
                         </label>
                       </div>

@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ClipboardCheck, Search, X, Settings, Info, AlertTriangle } from 'lucide-react';
+import { ClipboardCheck, Search, X, Settings, AlertTriangle } from 'lucide-react';
 import { useStore } from '../data/store';
-import { getGroups, evaluateGroups } from '../data/rules';
 import PageHeader from '../components/shared/PageHeader';
 import ActionCard from '../components/shared/ActionCard';
 import StatusPill from '../components/shared/StatusPill';
@@ -12,68 +11,18 @@ import ActionModal from '../components/ActionModal';
 
 export default function Claims() {
   const navigate = useNavigate();
-  const { rules, invoices, showToast } = useStore();
+  const { rules, invoices, showToast, devNotes } = useStore();
   const [tab, setTab] = useState('pending');
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const [actionModal, setActionModal] = useState(null);
 
-  const activeRules = rules.filter(r => r.on && !r.archived);
-  const activeRuleIds = new Set(activeRules.map(r => r.id));
+  const activeRuleIds = new Set(rules.filter(r => r.on && !r.archived).map(r => r.id));
 
-  const evaluateCond = (inv, c) => {
-    const val = parseFloat((c.val || '').toString().replace(/,/g, '')) || 0;
-    if (c.f === 'totalAmount') {
-      if (c.op === 'gt') return inv.amount > val;
-      if (c.op === 'gte') return inv.amount >= val;
-      if (c.op === 'lt') return inv.amount < val;
-      if (c.op === 'lte') return inv.amount <= val;
-      if (c.op === 'equals') return inv.amount === val;
-      if (c.op === 'not_equals') return inv.amount !== val;
-    }
-    if (c.f === 'invoiceNo') {
-      if (c.op === 'is_empty') return !inv.num;
-      if (c.op === 'is_not_empty') return !!inv.num;
-      if (c.op === 'equals') return inv.num === c.val;
-      if (c.op === 'contains') return (inv.num || '').includes(c.val);
-      if (c.op === 'not_contains') return !(inv.num || '').includes(c.val);
-    }
-    if (c.f === 'lineItemsMismatch') {
-      const lineSum = (inv.lineItems || []).reduce((s, li) => s + li.amount, 0);
-      const mismatch = Math.abs(lineSum - inv.amount) > 0.01;
-      if (c.op === 'is_true') return mismatch;
-      if (c.op === 'is_false') return !mismatch;
-    }
-    if (c.f === 'ocrAmountMatch') {
-      const matches = inv.ocrAmount == null ? true : Math.abs(inv.ocrAmount - inv.amount) < 0.01;
-      if (c.op === 'is_true') return matches;
-      if (c.op === 'is_false') return !matches;
-    }
-    if (c.f === 'invoiceAge' && inv.invDate) {
-      const days = Math.floor((new Date(inv.date) - new Date(inv.invDate)) / 86400000);
-      if (c.op === 'gt') return days > val;
-      if (c.op === 'gte') return days >= val;
-    }
-    return false;
-  };
-
-  // Compute dynamic alerts from active rules
-  const computeAlerts = (inv) => {
-    const hardcoded = inv.alerts.filter(a => a.system || activeRuleIds.has(a.ruleId));
-    const hardcodedRuleIds = new Set(hardcoded.map(a => a.ruleId));
-
-    const dynamic = activeRules
-      .filter(r => !hardcodedRuleIds.has(r.id))
-      .filter(r => evaluateGroups(inv, getGroups(r), evaluateCond))
-      .map(r => ({ ruleId: r.id, ruleName: r.name, msg: r.desc }));
-
-    return [...hardcoded, ...dynamic];
-  };
-
-  const activeAlerts = (inv) => computeAlerts(inv);
+  // Alerts are frozen at submission time — threshold changes do not retroactively flag old invoices.
+  const activeAlerts = (inv) => inv.alerts.filter(a => a.system || activeRuleIds.has(a.ruleId));
 
   const pending = invoices.filter(i => i.status === 'pending');
-  const flagged = invoices.filter(i => activeAlerts(i).length > 0);
-  const list = tab === 'pending' ? pending : tab === 'flagged' ? flagged : invoices;
+  const list = tab === 'pending' ? pending : invoices;
 
 
   return (
@@ -88,12 +37,23 @@ export default function Claims() {
         </div>
         <button
           onClick={() => navigate('/partner-promotions/invoice-management/settings')}
-          className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm text-text-secondary hover:text-text hover:border-text-secondary cursor-pointer transition-colors"
+          title="Settings"
+          aria-label="Settings"
+          className="p-2 border border-border rounded-lg text-text-secondary hover:text-text hover:border-text-secondary cursor-pointer transition-colors"
         >
           <Settings size={16} />
-          Settings
         </button>
       </div>
+
+      {devNotes && (
+        <div className="bg-[#E8F5E9] border border-[#A5D6A7] rounded-lg p-4 mb-6 text-[11px] text-[#1B5E20] leading-relaxed">
+          <div className="font-semibold text-[#2E7D32] mb-1.5">Dev Notes — Claims List</div>
+          <ul className="flex flex-col gap-1.5 list-disc pl-4">
+            <li>The red ⚠ icon next to the amount appears <strong>only for custom alerts</strong>. Built-in alerts (Unable to fetch details, Line item sum mismatch, Duplicate invoice number) never show a row indicator.</li>
+            <li>Alerts are frozen at submission and not re-evaluated live.</li>
+          </ul>
+        </div>
+      )}
 
       <ActionCard
         title="Approval Workflow"
@@ -106,15 +66,14 @@ export default function Claims() {
         <div className="flex items-center border-b-2 border-border bg-bg px-4">
           {[
             { key: 'pending', label: `Pending Actions (${pending.length})` },
-            { key: 'all', label: 'All Status', warning: true },
-            { key: 'flagged', label: `Flagged (${flagged.length})`, red: true },
+            { key: 'all', label: 'All Status' },
           ].map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               className={`px-4 py-3 text-xs font-semibold border-b-[4px] -mb-[2px] cursor-pointer transition-colors ${
                 tab === t.key
-                  ? `${t.red ? 'text-block border-block' : t.warning ? 'text-flag border-flag' : 'text-primary border-primary'} rounded-t`
+                  ? 'text-primary border-primary rounded-t'
                   : 'text-text-secondary border-transparent hover:text-text'
               }`}
             >
@@ -138,15 +97,6 @@ export default function Claims() {
               <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-left border-b border-border border-l">Invoice Number</th>
               <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-left border-b border-border border-l">Amount</th>
               <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-left border-b border-border border-l">Claim Submitted On</th>
-              <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-left border-b border-border border-l relative">
-                <div className="group inline-flex items-center gap-1 cursor-help">
-                  <span>Confidence Score</span>
-                  <Info size={12} className="text-text-secondary" />
-                  <div className="absolute left-0 top-full mt-1 z-50 w-60 bg-text text-white text-[11px] rounded-md p-2 leading-snug opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity font-normal normal-case tracking-normal shadow-lg">
-                    OCR confidence score is generated at the time the invoice is submitted. OCR runs once on upload — the score is stored permanently on the claim.
-                  </div>
-                </div>
-              </th>
               {tab === 'all' && <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-left border-b border-border border-l">Status</th>}
               <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-left border-b border-border border-l w-[100px]">Actions</th>
             </tr>
@@ -198,15 +148,12 @@ export default function Claims() {
                   <td className="px-4 py-3">
                     <div className="inline-flex items-center gap-2">
                       <span>₹{inv.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                      {invAlerts.length > 0 && (
+                      {invAlerts.some(a => !a.system) && (
                         <AlertTriangle size={14} className="text-[#C62828]" />
                       )}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-text-secondary">{inv.date}</td>
-                  <td className="px-4 py-3 text-text">
-                    {inv.ocrConfidence != null ? `${inv.ocrConfidence}%` : '—'}
-                  </td>
                   {tab === 'all' && <td className="px-4 py-3"><StatusPill status={inv.status} /></td>}
                   <td className="px-4 py-3">
                     <Popover items={[

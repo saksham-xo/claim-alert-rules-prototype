@@ -1,8 +1,8 @@
-import { MessageSquareText, Code } from 'lucide-react';
+import { Code } from 'lucide-react';
 import { useStore } from '../../data/store';
 
 export default function Topbar() {
-  const { pmNotes, togglePmNotes, devNotes, toggleDevNotes } = useStore();
+  const { devNotes, toggleDevNotes } = useStore();
 
   return (
     <header className="h-14 bg-surface border-b border-border shrink-0 w-full">
@@ -20,18 +20,6 @@ export default function Topbar() {
 
       {/* Right — toggles + admin */}
       <div className="flex items-center gap-3">
-        <button
-          onClick={togglePmNotes}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold cursor-pointer transition-all border ${
-            pmNotes
-              ? 'bg-[#FFF8E1] border-[#FFE082] text-[#F57F17]'
-              : 'bg-bg border-border text-text-secondary hover:border-text-secondary'
-          }`}
-        >
-          <MessageSquareText size={12} />
-          PM Notes
-        </button>
-
         <button
           onClick={toggleDevNotes}
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold cursor-pointer transition-all border ${

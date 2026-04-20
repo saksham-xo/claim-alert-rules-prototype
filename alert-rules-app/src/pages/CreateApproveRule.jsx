@@ -380,7 +380,7 @@ export default function CreateApproveRule() {
               <div className="flex items-center gap-2 pt-3 border-t border-border">
                 <label className="relative inline-block w-9 h-5 cursor-pointer">
                   <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} className="sr-only peer" />
-                  <span className="absolute inset-0 bg-gray-300 rounded-full transition-colors peer-checked:bg-success" />
+                  <span className="absolute inset-0 bg-gray-300 rounded-full transition-colors peer-checked:bg-toggle-on" />
                   <span className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4" />
                 </label>
                 <span className="text-[13px] text-text">Activate rule immediately</span>

@@ -1,70 +1,99 @@
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, X, ChevronLeft, Trash2, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ChevronLeft, AlertTriangle } from 'lucide-react';
 import { useStore } from '../data/store';
-import Popover from '../components/shared/Popover';
 
-const fieldDefs = [
-  { v: 'totalAmount', l: 'Invoice Amount', numeric: true, ops: [{ v: 'equals', l: 'Equals' }, { v: 'not_equals', l: 'Not Equals' }, { v: 'gt', l: 'Greater Than' }, { v: 'lt', l: 'Less Than' }, { v: 'gte', l: 'Greater Than or Equal To' }, { v: 'lte', l: 'Less Than or Equal To' }] },
-  { v: 'invoiceNo', l: 'Invoice Number', ops: [{ v: 'equals', l: 'Equals' }, { v: 'not_equals', l: 'Not Equals' }, { v: 'contains', l: 'Contains' }, { v: 'not_contains', l: 'Does Not Contain' }] },
-  { v: 'totalsMismatch', l: 'Line Items Total Mismatch', ops: [{ v: 'equals', l: 'Equals' }, { v: 'not_equals', l: 'Not Equals' }] },
-  { v: 'invoiceAge', l: 'Invoice Age (days)', numeric: true, ops: [{ v: 'equals', l: 'Equals' }, { v: 'not_equals', l: 'Not Equals' }, { v: 'gt', l: 'Greater Than' }, { v: 'lt', l: 'Less Than' }, { v: 'gte', l: 'Greater Than or Equal To' }, { v: 'lte', l: 'Less Than or Equal To' }] },
-  { v: 'ocrConfidence', l: 'Confidence Score (%)', numeric: true, ops: [{ v: 'equals', l: 'Equals' }, { v: 'not_equals', l: 'Not Equals' }, { v: 'gt', l: 'Greater Than' }, { v: 'lt', l: 'Less Than' }, { v: 'gte', l: 'Greater Than or Equal To' }, { v: 'lte', l: 'Less Than or Equal To' }] },
-  { v: 'ocrAmount', l: 'Scanned Amount vs Entered', ops: [{ v: 'equals', l: 'Equals' }, { v: 'not_equals', l: 'Not Equals' }] },
+const numericOps = [
+  { v: 'equals', l: '=' }, { v: 'not_equals', l: '≠' },
+  { v: 'gt', l: '>' }, { v: 'gte', l: '≥' },
+  { v: 'lt', l: '<' }, { v: 'lte', l: '≤' },
 ];
-const noValueOps = ['is_empty', 'is_not_empty'];
+const stringOps = [
+  { v: 'equals', l: 'Equals' }, { v: 'contains', l: 'Contains' },
+  { v: 'not_contains', l: "Doesn't contain" },
+  { v: 'is_empty', l: 'Is empty' }, { v: 'is_not_empty', l: 'Is not empty' },
+];
+const booleanOps = [{ v: 'is_true', l: 'Yes' }, { v: 'is_false', l: 'No' }];
+const noValueOps = ['is_empty', 'is_not_empty', 'is_true', 'is_false'];
 
-const approveFieldLabels = {
-  totalAmount: 'Invoice Amount',
-  invoiceNo: 'Invoice Number',
-  totalsMismatch: 'Line Items Total Mismatch',
-  invoiceAge: 'Invoice Age (days)',
-  ocrConfidence: 'Confidence Score (%)',
-  ocrAmount: 'Scanned Amount vs Entered',
-  stockistName: 'Stockist Name',
-  gstinVerified: 'GSTIN Verified',
-  lineItemsInCatalog: 'Line Items In Catalog',
-  poReference: 'PO Reference',
-  amountVariance: 'Amount Variance (%)',
+const fieldIndex = {
+  totalAmount:        { label: 'Invoice Amount', ops: numericOps, numeric: true },
+  invoiceNo:          { label: 'Invoice Number', ops: stringOps },
+  lineItemsMismatch:  { label: 'Line Items Total Mismatch', ops: booleanOps },
+  ocrAmountMatch:     { label: 'Scanned Amount Matches Entered', ops: booleanOps },
+  ocrConfidence:      { label: 'Confidence Score (%)', ops: numericOps, numeric: true },
+  invoiceAge:         { label: 'Invoice Age (days)', ops: numericOps, numeric: true },
 };
 
-const approveOpLabels = {
-  equals: 'Equals', not_equals: 'Not Equals',
-  gt: 'Greater Than', lt: 'Less Than',
-  gte: 'Greater Than or Equal To', lte: 'Less Than or Equal To',
-  contains: 'Contains', not_contains: 'Does Not Contain',
-  is_empty: 'Is Empty', is_not_empty: 'Is Not Empty',
-};
+const defaultAlerts = [
+  { id: 'DEF-01', name: 'Unable to fetch details', desc: 'Fires when invoice details are missing or unreadable by OCR.' },
+  { id: 'DEF-02', name: 'Line item sum mismatch', desc: 'Fires when the sum of line items on the invoice does not match the total invoice amount.' },
+  { id: 'DEF-03', name: 'Duplicate invoice number', desc: 'Fires when an invoice number has already been submitted previously by any retailer.' },
+];
 
 export default function AlertRules() {
   const navigate = useNavigate();
-  const { rules, toggleRule, duplicateRule, showToast, pmNotes, devNotes, approveRules, toggleApproveRule, reorderApproveRules } = useStore();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const settingsTab = searchParams.get('tab') || 'alerts';
-  const setSettingsTab = (tab) => setSearchParams({ tab });
-  const [alertTab, setAlertTab] = useState('active');
-  const [search, setSearch] = useState('');
+  const { rules, toggleRule, saveRule, showToast, devNotes } = useStore();
 
-  const [dragIdx, setDragIdx] = useState(null);
-  const [reorderConfirm, setReorderConfirm] = useState(null);
+  const [drafts, setDrafts] = useState({});
+  const [pendingConfirm, setPendingConfirm] = useState(null);
 
-  const handleDragStart = (idx) => setDragIdx(idx);
-  const handleDragOver = (e, idx) => { e.preventDefault(); };
-  const handleDrop = (targetIdx) => {
-    if (dragIdx === null || dragIdx === targetIdx) { setDragIdx(null); return; }
-    setReorderConfirm({ from: dragIdx, to: targetIdx });
-  };
-  const confirmReorder = () => {
-    reorderApproveRules(reorderConfirm.from, reorderConfirm.to);
-    showToast('Priority updated');
-    setReorderConfirm(null);
-    setDragIdx(null);
+  const draftKey = (ruleId, gi, ci) => `${ruleId}:${gi}:${ci}`;
+
+  const valueFor = (rule, gi, ci) => {
+    const k = draftKey(rule.id, gi, ci);
+    if (k in drafts) return drafts[k];
+    return rule.groups[gi][ci].val ?? '';
   };
 
-  const activeRules = rules.filter(r => r.on);
-  const inactiveRules = rules.filter(r => !r.on);
-  const alertList = (alertTab === 'active' ? activeRules : inactiveRules)
-    .filter(r => !search || r.name.toLowerCase().includes(search.toLowerCase()));
+  const handleDraft = (rule, gi, ci, newVal) => {
+    setDrafts(prev => ({ ...prev, [draftKey(rule.id, gi, ci)]: newVal }));
+  };
+
+  const handleCommit = (rule, gi, ci) => {
+    const k = draftKey(rule.id, gi, ci);
+    if (!(k in drafts)) return;
+    const draftVal = drafts[k];
+    const originalVal = rule.groups[gi][ci].val ?? '';
+    if (draftVal === originalVal) {
+      setDrafts(prev => { const next = { ...prev }; delete next[k]; return next; });
+      return;
+    }
+    setPendingConfirm({ kind: 'threshold', rule, gi, ci, newVal: draftVal, originalVal });
+  };
+
+  const clearDraft = (rule, gi, ci) => {
+    setDrafts(prev => { const next = { ...prev }; delete next[draftKey(rule.id, gi, ci)]; return next; });
+  };
+
+  const handleToggleRequest = (rule) => {
+    setPendingConfirm({ kind: 'toggle', rule });
+  };
+
+  const acceptPending = () => {
+    if (pendingConfirm.kind === 'toggle') {
+      const { rule } = pendingConfirm;
+      toggleRule(rule.id);
+      showToast(`"${rule.name}" ${rule.on ? 'deactivated' : 'activated'} — logged to audit trail`);
+    } else {
+      const { rule, gi, ci, newVal } = pendingConfirm;
+      const nextGroups = rule.groups.map((g, i) =>
+        i !== gi ? g : g.map((c, j) => j === ci ? { ...c, val: newVal } : c)
+      );
+      saveRule({ ...rule, groups: nextGroups });
+      showToast(`"${rule.name}" threshold updated — logged to audit trail`);
+      clearDraft(rule, gi, ci);
+    }
+    setPendingConfirm(null);
+  };
+
+  const cancelPending = () => {
+    if (pendingConfirm.kind === 'threshold') {
+      const { rule, gi, ci } = pendingConfirm;
+      clearDraft(rule, gi, ci);
+    }
+    setPendingConfirm(null);
+  };
 
   return (
     <div>
@@ -75,335 +104,159 @@ export default function AlertRules() {
         </button>
         <div>
           <h1 className="text-xl font-semibold text-text">Claims Settings</h1>
-          <p className="text-sm text-text-secondary mt-0.5">Configure alerts and auto-approval for invoice claims processing</p>
+          <p className="text-sm text-text-secondary mt-0.5">Configure alerts for invoice claims processing</p>
         </div>
       </div>
 
-      {/* Settings card with top-level tabs */}
-      <div className="bg-surface rounded-lg shadow-[0_0_1px_1px_var(--color-border)]">
-        {/* Top-level settings tabs */}
-        <div className="flex border-b-2 border-border px-4">
-          <button
-            onClick={() => setSettingsTab('alerts')}
-            className={`px-4 py-3 text-xs font-semibold border-b-[4px] -mb-[2px] cursor-pointer transition-colors ${
-              settingsTab === 'alerts'
-                ? 'text-primary border-primary rounded-t'
-                : 'text-text-secondary border-transparent hover:text-text'
-            }`}
-          >
-            Alerts
-          </button>
-          <button
-            onClick={() => setSettingsTab('auto-approval')}
-            className={`px-4 py-3 text-xs font-semibold border-b-[4px] -mb-[2px] cursor-pointer transition-colors ${
-              settingsTab === 'auto-approval'
-                ? 'text-primary border-primary rounded-t'
-                : 'text-text-secondary border-transparent hover:text-text'
-            }`}
-          >
-            Auto-Approval
-          </button>
-          <button
-            onClick={() => setSettingsTab('general')}
-            className={`px-4 py-3 text-xs font-semibold border-b-[4px] -mb-[2px] cursor-pointer transition-colors ${
-              settingsTab === 'general'
-                ? 'text-primary border-primary rounded-t'
-                : 'text-text-secondary border-transparent hover:text-text'
-            }`}
-          >
-            General
-          </button>
+      {devNotes && (
+        <div className="bg-[#E8F5E9] border border-[#A5D6A7] rounded-lg p-4 mb-6 text-[11px] text-[#1B5E20] leading-relaxed">
+          <div className="font-semibold text-[#2E7D32] mb-1.5">Dev Notes — Claims Settings</div>
+          <ul className="flex flex-col gap-1.5 list-disc pl-4">
+            <li><strong>Built-in alerts</strong> ship enabled by default. They can only be disabled from the backend — no UI path to toggle them off. The card's toggle is display-only.</li>
+            <li>The <strong>Edit Claims Settings</strong> permission gates exactly two actions on this page: toggling custom alerts on/off, and updating the threshold value. Nothing else on this screen is editable.</li>
+            <li><strong>Audit trail:</strong> every custom-alert toggle and every threshold value change is recorded. The "Save Alert Changes" modal fires before the change persists — Accept commits + writes the audit entry; Cancel reverts and writes nothing. A silent revert (user types then restores the original value) also writes nothing.</li>
+            <li><strong>Threshold change impact — alerts are frozen at submission.</strong> Changing a threshold does not retroactively re-flag or un-flag existing claims:
+              <ul className="list-[circle] pl-4 mt-1 flex flex-col gap-0.5">
+                <li><em>Decrease</em> (e.g. 50k → 20k): past ₹40k claims stay unflagged. Only claims submitted after the change get evaluated at the new 20k threshold.</li>
+                <li><em>Increase</em> (e.g. 50k → 100k): past ₹75k claims stay flagged (snapshot preserved). New ₹75k claims no longer flag.</li>
+                <li><em>Rule toggled off</em>: existing alerts stamped with that ruleId disappear from the list and detail view. Snapshot on the invoice is preserved — toggling back on restores them.</li>
+              </ul>
+            </li>
+          </ul>
         </div>
+      )}
 
-        {/* ─── Alerts Tab ─── */}
-        {settingsTab === 'alerts' && (
-          <div>
-            {/* Alerts header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <div>
-                <h2 className="text-sm font-semibold text-text">Manage Alerts</h2>
-                <p className="text-xs text-text-secondary mt-0.5">Configure alerts for invoice claims processing</p>
-              </div>
-              <button
-                onClick={() => navigate('/partner-promotions/invoice-management/settings/alerts/create')}
-                className="bg-primary text-white px-5 py-2 rounded text-sm font-medium hover:bg-[#354499] transition-colors cursor-pointer"
-              >
-                Create Alert
-              </button>
+      <div className="bg-surface rounded-lg shadow-[0_0_1px_1px_var(--color-border)]">
+        <div className="px-6 py-6 flex flex-col gap-7">
+          {/* Default Alerts */}
+          <section className="flex flex-col gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-text">Built-in Alerts</h2>
+              <p className="text-xs text-text-secondary mt-0.5">Enabled by default. Run on every invoice at submission. No configuration required.</p>
             </div>
-
-            {/* Active/Inactive sub-tabs */}
-            <div className="flex border-b border-border bg-bg px-4">
-              <button
-                onClick={() => setAlertTab('active')}
-                className={`px-4 py-2.5 text-xs font-semibold cursor-pointer transition-colors ${
-                  alertTab === 'active'
-                    ? 'text-primary border-b-2 border-primary -mb-px'
-                    : 'text-text-secondary hover:text-text'
-                }`}
-              >
-                Active ({activeRules.length})
-              </button>
-              <button
-                onClick={() => setAlertTab('inactive')}
-                className={`px-4 py-2.5 text-xs font-semibold cursor-pointer transition-colors ${
-                  alertTab === 'inactive'
-                    ? 'text-primary border-b-2 border-primary -mb-px'
-                    : 'text-text-secondary hover:text-text'
-                }`}
-              >
-                Inactive
-              </button>
-            </div>
-
-            {/* Search */}
-            <div className="relative mx-4 my-4">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#868CCC]" />
-              <input
-                type="text"
-                placeholder="Search by Alert Name"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full pl-10 pr-10 py-2.5 border border-border rounded-lg text-[13px] text-text outline-none focus:border-primary placeholder:text-[#BDC5DA]"
-              />
-              {search && (
-                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary cursor-pointer">
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-
-            {/* Table */}
-            <table className="w-full border-collapse">
-              <thead>
-                <tr>
-                  <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-center border-b border-border w-16 relative">
-                    {devNotes && (
-                      <div className="absolute left-0 top-full mt-1 z-50 w-64 bg-[#E8F5E9] border border-[#A5D6A7] rounded-lg p-3 shadow-lg text-[11px] text-[#1B5E20] leading-relaxed font-normal">
-                        <span className="font-semibold text-[#2E7D32]">Dev Notes:</span>
-                        <ul className="mt-1 flex flex-col gap-1 list-disc pl-3">
-                          <li>Toggle off → moves to Inactive tab</li>
-                          <li>Toggle on → moves to Active tab</li>
-                          <li>Toggle state reflects on Claims page alerts immediately</li>
-                        </ul>
-                      </div>
-                    )}
-                  </th>
-                  <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-left border-b border-border border-l">Alert Name</th>
-                  <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-left border-b border-border border-l">Alert ID</th>
-                  <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-left border-b border-border border-l relative">
-                    Created By
-                    {pmNotes && (
-                      <div className="absolute left-0 top-full mt-1 z-50 w-64 bg-[#FFF8E1] border border-[#FFE082] rounded-lg p-3 shadow-lg text-[11px] text-[#5D4037] leading-relaxed font-normal">
-                        <span className="font-semibold text-[#F57F17]">PM Note:</span> Should we show the person's name + role, or just the name instead of "Admin"?
-                      </div>
-                    )}
-                  </th>
-                  <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-left border-b border-border border-l">Date Created</th>
-                  <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-left border-b border-border border-l w-[100px]">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {alertList.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-10 text-text-secondary">
-                      No {alertTab} alerts {search ? 'matching your search' : 'configured'}
-                    </td>
-                  </tr>
-                ) : alertList.map(r => (
-                  <tr key={r.id} className="border-b border-border hover:bg-[#F5F5F5] transition-colors">
-                    <td className="px-4 py-3 text-center">
-                      <label className="relative inline-block w-9 h-5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={r.on}
-                          onChange={() => {
-                            toggleRule(r.id);
-                            showToast(`${r.name} ${r.on ? 'deactivated' : 'activated'}`);
-                          }}
-                          className="sr-only peer"
-                        />
-                        <span className="absolute inset-0 bg-gray-300 rounded-full transition-colors peer-checked:bg-primary" />
-                        <span className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4" />
-                      </label>
-                    </td>
-                    <td className="px-4 py-3 font-medium text-text">{r.name}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-text-secondary">{r.id}</td>
-                    <td className="px-4 py-3 text-text">{r.by || 'Admin'}</td>
-                    <td className="px-4 py-3 text-text-secondary">{r.at || '—'}</td>
-                    <td className="px-4 py-3">
-                      <Popover items={[
-                        { label: 'View', onClick: () => navigate(`/partner-promotions/invoice-management/settings/alerts/${r.id}`) },
-                        { label: 'Edit', onClick: () => navigate(`/partner-promotions/invoice-management/settings/alerts/${r.id}/edit`) },
-                        { label: 'Duplicate', onClick: () => { duplicateRule(r.id); showToast('Duplicated'); } },
-                      ]} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* Pagination */}
-            <div className="flex items-center justify-end gap-4 px-4 py-2 border-t border-border text-[13px] text-text-secondary">
-              <span>Rows per page:</span>
-              <select className="bg-[rgba(63,81,181,0.1)] border-none rounded px-2 py-1 text-primary font-medium">
-                <option>10</option>
-              </select>
-              <span>1-{alertList.length} of {alertList.length}</span>
-              <div className="flex gap-1">
-                <button className="border border-border rounded w-7 h-7 text-text-secondary cursor-pointer">&lsaquo;</button>
-                <button className="border border-border rounded w-7 h-7 text-text-secondary cursor-pointer">&rsaquo;</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ─── Auto-Approve Tab ─── */}
-        {settingsTab === 'auto-approval' && (
-          <div>
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <div>
-                <h2 className="text-sm font-semibold text-text">Manage Auto-Approvals</h2>
-                <p className="text-xs text-text-secondary mt-0.5">Claims matching these rules are instantly approved at submission. Rules are evaluated in priority order.</p>
-              </div>
-              <button
-                onClick={() => navigate('/partner-promotions/invoice-management/settings/approve/create')}
-                className="bg-primary text-white px-5 py-2 rounded text-sm font-medium hover:bg-[#354499] transition-colors cursor-pointer"
-              >
-                Add Rule
-              </button>
-            </div>
-
-            {/* Rules table */}
-            <table className="w-full border-collapse">
-              <thead>
-                <tr>
-                  <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-center border-b border-border w-16"></th>
-                  <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-left border-b border-border border-l">Rule Name</th>
-                  <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-center border-b border-border border-l w-20">Priority</th>
-                  <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-center border-b border-border border-l whitespace-nowrap">Min Confidence Score (≥)</th>
-                  <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-center border-b border-border border-l w-12"></th>
-                  <th className="bg-bg text-xs font-semibold text-[#4F516E] px-4 py-2.5 text-left border-b border-border border-l w-[100px]">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {approveRules.map((rule, idx) => (
-                  <tr
-                    key={rule.id}
-                    draggable
-                    onDragStart={() => handleDragStart(idx)}
-                    onDragOver={(e) => handleDragOver(e, idx)}
-                    onDrop={() => handleDrop(idx)}
-                    className={`border-b border-border hover:bg-[#F5F5F5] transition-colors ${!rule.on ? 'opacity-50' : ''} ${dragIdx === idx ? 'opacity-30' : ''}`}
-                  >
-                    <td className="px-4 py-3 text-center">
-                      <label className="relative inline-block w-9 h-5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={rule.on}
-                          onChange={() => {
-                            toggleApproveRule(rule.id);
-                            showToast(`${rule.name} ${rule.on ? 'disabled' : 'enabled'}`);
-                          }}
-                          className="sr-only peer"
-                        />
-                        <span className="absolute inset-0 bg-gray-300 rounded-full transition-colors peer-checked:bg-primary" />
-                        <span className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4" />
-                      </label>
-                    </td>
-                    <td className="px-4 py-3 font-medium text-text">{rule.name}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="text-[10px] font-bold text-primary bg-primary-light px-2 py-0.5 rounded">{rule.priority}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {rule.minScanQuality ? (
-                        <span className="text-sm font-medium text-text">{rule.minScanQuality}%</span>
-                      ) : (
-                        <span className="text-xs text-text-secondary">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center text-text-secondary cursor-grab select-none">⋮⋮</td>
-                    <td className="px-4 py-3">
-                      <Popover items={[
-                        { label: 'View', onClick: () => navigate(`/partner-promotions/invoice-management/settings/approve/${rule.id}`) },
-                        { label: 'Edit', onClick: () => navigate(`/partner-promotions/invoice-management/settings/approve/${rule.id}/edit`) },
-                      ]} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* Pagination */}
-            <div className="flex items-center justify-end gap-4 px-4 py-2 border-t border-border text-[13px] text-text-secondary">
-              <span>Rows per page:</span>
-              <select className="bg-[rgba(63,81,181,0.1)] border-none rounded px-2 py-1 text-primary font-medium">
-                <option>10</option>
-              </select>
-              <span>1-{approveRules.length} of {approveRules.length}</span>
-              <div className="flex gap-1">
-                <button className="border border-border rounded w-7 h-7 text-text-secondary cursor-pointer">&lsaquo;</button>
-                <button className="border border-border rounded w-7 h-7 text-text-secondary cursor-pointer">&rsaquo;</button>
-              </div>
-            </div>
-
-
-            {devNotes && (
-              <div className="mx-6 mb-5 bg-[#E8F5E9] border border-[#A5D6A7] rounded-lg p-3 text-[11px] text-[#1B5E20] leading-relaxed">
-                <span className="font-semibold text-[#2E7D32]">Dev Notes:</span>
-                <ul className="mt-1 flex flex-col gap-1 list-disc pl-3">
-                  <li>Rules evaluated in priority order — first match wins</li>
-                  <li>Auto-approve evaluates at claim submission time (same as alerts)</li>
-                  <li>Approved is final — new rules don't retroactively affect approved claims</li>
-                  <li>Same condition framework as alerts — field/operator/value</li>
-                  <li>Stockist Name, GSTIN, Line Items are semi-configurable fields (per-client setup)</li>
-                  <li>Auto-approved claims logged with reason: "Auto-approved: [rule name]"</li>
-                </ul>
-              </div>
-            )}
-
-            {pmNotes && (
-              <div className="mx-6 mb-5 bg-[#FFF8E1] border border-[#FFE082] rounded-lg p-3 text-[11px] text-[#5D4037] leading-relaxed">
-                <span className="font-semibold text-[#F57F17]">PM Note:</span> Stockist Name (Approved List), GSTIN verification, and Line Items (Product Catalog) are semi-configurable fields — require per-client setup. How do we manage these lists? Separate config page per client program?
-              </div>
-            )}
-            {/* Reorder confirmation modal */}
-            {reorderConfirm && (
-              <div className="fixed inset-0 bg-[rgba(17,24,39,0.5)] z-[100] flex items-center justify-center">
-                <div className="bg-surface rounded-xl shadow-xl max-w-[420px] w-full p-6">
-                  <div className="flex items-center gap-2 mb-3">
-                    <svg width="20" height="20" fill="none" stroke="#F57F17" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01M10.29 3.86l-8.6 14.91A1 1 0 002.54 20h17.92a1 1 0 00.85-1.53l-8.6-14.91a1 1 0 00-1.72 0z"/></svg>
-                    <h3 className="text-base font-semibold text-text">Change Sequence</h3>
-                  </div>
-                  <p className="text-sm text-text-secondary mb-5">Changing rule sequence might impact expected outcome.</p>
-                  <div className="flex items-center justify-end gap-3">
-                    <button
-                      onClick={() => { setReorderConfirm(null); setDragIdx(null); }}
-                      className="px-4 py-2 border border-border rounded text-sm font-medium text-text hover:bg-bg cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={confirmReorder}
-                      className="px-4 py-2 bg-primary text-white rounded text-sm font-medium hover:bg-[#354499] cursor-pointer"
-                    >
-                      Continue
-                    </button>
+            <div className="flex flex-col gap-2">
+              {defaultAlerts.map(a => (
+                <div key={a.id} className="bg-surface border border-border rounded-lg p-4">
+                  <div className="flex items-start gap-4">
+                    <Toggle checked={true} disabled />
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-text mb-0.5">{a.name}</h3>
+                      <p className="text-[13px] text-text-secondary leading-snug">{a.desc}</p>
+                    </div>
                   </div>
                 </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Custom Alerts */}
+          <section className="flex flex-col gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-text">Custom Alerts</h2>
+              <p className="text-xs text-text-secondary mt-0.5">Matching invoices display a warning icon next to their amount on the Claims list. Condition changes are recorded in the audit trail.</p>
+            </div>
+            {rules.length === 0 ? (
+              <div className="text-center py-10 text-text-secondary text-sm">No custom alerts configured.</div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {rules.map(r => (
+                  <div key={r.id} className="bg-surface border border-border rounded-lg p-4 flex flex-col gap-3">
+                    <div className="flex items-start gap-4">
+                      <Toggle
+                        checked={r.on}
+                        onChange={() => handleToggleRequest(r)}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-text mb-0.5">{r.name}</h3>
+                        {r.desc && <p className="text-[13px] text-text-secondary leading-snug">{r.desc}</p>}
+                      </div>
+                    </div>
+                    {r.groups?.length > 0 && r.groups[0].length > 0 && (
+                      <div className="pl-[52px] flex flex-col gap-2">
+                        {r.groups.map((grp, gi) => (
+                          grp.map((c, ci) => {
+                            const field = fieldIndex[c.f];
+                            const isNoValue = noValueOps.includes(c.op);
+                            const opMatch = field?.ops.find(o => o.v === c.op);
+                            return (
+                              <div key={`${gi}-${ci}`} className="grid grid-cols-3 gap-3">
+                                <div className="px-3 py-2.5 border border-border rounded-lg text-sm text-text bg-bg/50 cursor-not-allowed">{field?.label || c.f}</div>
+                                <div className="px-3 py-2.5 border border-border rounded-lg text-sm text-text bg-bg/50 cursor-not-allowed">{opMatch?.l || c.op}</div>
+                                {isNoValue ? (
+                                  <div className="px-3 py-2.5 border border-border rounded-lg text-sm text-text-secondary bg-bg/30 italic">No value needed</div>
+                                ) : (
+                                  <input
+                                    type={field?.numeric ? 'number' : 'text'}
+                                    value={valueFor(r, gi, ci)}
+                                    onChange={e => handleDraft(r, gi, ci, e.target.value)}
+                                    onBlur={() => handleCommit(r, gi, ci)}
+                                    onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                                    placeholder="Value"
+                                    className="px-3 py-2.5 border border-border rounded-lg text-sm text-text bg-surface outline-none focus:border-primary placeholder:text-[#BDC5DA]"
+                                  />
+                                )}
+                              </div>
+                            );
+                          })
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
-          </div>
-        )}
-
-        {/* ─── General Tab ─── */}
-        {settingsTab === 'general' && (
-          <div className="px-6 py-5">
-            <div className="text-sm text-text-secondary text-center py-10">General settings coming soon</div>
-          </div>
-        )}
+          </section>
+        </div>
       </div>
+
+      {pendingConfirm && (
+        <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center" onClick={cancelPending}>
+          <div className="bg-surface rounded-lg shadow-xl w-[480px]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={20} className="text-block" />
+                <span className="text-base font-semibold text-text">Save Alert Changes</span>
+              </div>
+              <button onClick={cancelPending} className="bg-transparent border-none cursor-pointer text-xl text-text-secondary">&times;</button>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-text leading-relaxed">
+                This action will be recorded in the Audit Trail. Click "Accept" to save your changes.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
+              <button
+                onClick={cancelPending}
+                className="text-primary px-4 py-2 rounded text-sm font-medium hover:bg-bg cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={acceptPending}
+                className="bg-primary text-white px-4 py-2 rounded text-sm font-medium hover:bg-[#354499] cursor-pointer"
+              >
+                Accept
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function Toggle({ checked, onChange, disabled = false }) {
+  return (
+    <label className={`relative inline-block w-9 h-5 shrink-0 mt-0.5 ${disabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        disabled={disabled}
+        className="sr-only peer"
+      />
+      <span className="absolute inset-0 bg-gray-300 rounded-full transition-colors peer-checked:bg-toggle-on" />
+      <span className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4" />
+    </label>
   );
 }

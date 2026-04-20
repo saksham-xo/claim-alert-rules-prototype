@@ -4,14 +4,14 @@ import PageHeader from '../components/shared/PageHeader';
 import BehaviorPill from '../components/shared/BehaviorPill';
 
 const alertActivity = [
-  { ts: '15 Apr, 2026 12:00', inv: '25081228 [2]', rule: 'Duplicate Invoice Detection', behavior: 'block', st: 'active' },
-  { ts: '14 Apr, 2026 16:15', inv: '25081228 [2]', rule: 'Duplicate Invoice Detection', behavior: 'block', st: 'active' },
-  { ts: '10 Apr, 2026 13:47', inv: 'FE-25-310468', rule: 'Unauthorised Distributor', behavior: 'block', st: 'active' },
-  { ts: '10 Apr, 2026 13:47', inv: 'FE-25-310468', rule: 'Mismatched Totals', behavior: 'block', st: 'active' },
-  { ts: '10 Apr, 2026 10:08', inv: '250007300387493', rule: 'High Value Invoice', behavior: 'flag', st: 'overridden' },
-  { ts: '09 Apr, 2026 15:30', inv: 'INV-2026-00395', rule: 'High Value Invoice', behavior: 'flag', st: 'acknowledged' },
-  { ts: '08 Apr, 2026 11:12', inv: 'INV-2026-00390', rule: 'Duplicate Invoice Detection', behavior: 'block', st: 'acknowledged' },
-  { ts: '07 Apr, 2026 09:45', inv: 'INV-2026-00388', rule: 'Unauthorised Distributor', behavior: 'block', st: 'acknowledged' },
+  { ts: '15 Apr, 2026 12:00', inv: '25081228 [2]', rule: 'Duplicate invoice detection', behavior: 'block', st: 'active' },
+  { ts: '14 Apr, 2026 16:15', inv: '25081228 [2]', rule: 'Duplicate invoice detection', behavior: 'block', st: 'active' },
+  { ts: '10 Apr, 2026 13:47', inv: 'FE-25-310468', rule: 'Unauthorised distributor', behavior: 'block', st: 'active' },
+  { ts: '10 Apr, 2026 13:47', inv: 'FE-25-310468', rule: 'Mismatched totals', behavior: 'block', st: 'active' },
+  { ts: '10 Apr, 2026 10:08', inv: '250007300387493', rule: 'High value invoice', behavior: 'flag', st: 'overridden' },
+  { ts: '09 Apr, 2026 15:30', inv: 'INV-2026-00395', rule: 'High value invoice', behavior: 'flag', st: 'acknowledged' },
+  { ts: '08 Apr, 2026 11:12', inv: 'INV-2026-00390', rule: 'Duplicate invoice detection', behavior: 'block', st: 'acknowledged' },
+  { ts: '07 Apr, 2026 09:45', inv: 'INV-2026-00388', rule: 'Unauthorised distributor', behavior: 'block', st: 'acknowledged' },
 ];
 
 function AlertStatusPill({ status }) {

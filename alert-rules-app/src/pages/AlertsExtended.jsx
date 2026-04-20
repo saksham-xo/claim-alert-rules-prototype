@@ -110,7 +110,7 @@ export default function AlertsExtended() {
                       }}
                       className="sr-only peer"
                     />
-                    <span className="absolute inset-0 bg-gray-300 rounded-full transition-colors peer-checked:bg-primary" />
+                    <span className="absolute inset-0 bg-gray-300 rounded-full transition-colors peer-checked:bg-toggle-on" />
                     <span className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4" />
                   </label>
                 </td>

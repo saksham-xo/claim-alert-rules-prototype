@@ -16,12 +16,12 @@ const noValueOps = ['is_duplicate', 'mismatch', 'not_in_authorised', 'not_equals
 
 /* ── Template definitions ── */
 const templateDefs = [
-  { key: 'amount', title: 'Amount Threshold', desc: 'Flag invoices exceeding a configurable amount', iconBg: 'bg-flag-bg', iconColor: 'text-flag', icon: '\u20b9', pill: 'flag', defName: 'High Value Invoice', defDesc: 'Flag invoices exceeding amount threshold for additional review', defBehavior: 'flag', defActs: ['flag_invoice', 'require_review'] },
-  { key: 'duplicate', title: 'Duplicate Detection', desc: 'Detect previously submitted invoice numbers', iconBg: 'bg-block-bg', iconColor: 'text-block', icon: 'copy', pill: 'block', defName: 'Duplicate Invoice Number', defDesc: 'Block when invoice number has already been submitted in the system', defBehavior: 'block', defActs: ['flag_invoice', 'block_approval'] },
-  { key: 'distributor', title: 'Distributor Verification', desc: 'Check supplier against authorised distributor list for retailer', iconBg: 'bg-block-bg', iconColor: 'text-block', icon: 'shield', pill: 'block', defName: 'Unauthorised Distributor', defDesc: 'Block when supplier is not in authorised distributor list for the retailer', defBehavior: 'block', defActs: ['flag_invoice', 'block_approval', 'send_notification'] },
-  { key: 'mismatch', title: 'Total Mismatch', desc: 'Compare line item sum against invoice total', iconBg: 'bg-block-bg', iconColor: 'text-block', icon: 'calc', pill: 'block', defName: 'Mismatched Totals', defDesc: 'Block when sum of line item amounts does not equal the invoice total', defBehavior: 'block', defActs: ['flag_invoice', 'block_approval'] },
-  { key: 'ocr', title: 'OCR Quality Check', desc: 'Flag low-confidence scans or amount mismatches', iconBg: 'bg-flag-bg', iconColor: 'text-flag', icon: 'doc', pill: 'flag', defName: 'OCR Confidence Low', defDesc: 'Flag when OCR scan confidence is below threshold or extracted amount mismatches entry', defBehavior: 'flag', defActs: ['flag_invoice'] },
-  { key: 'custom', title: 'Custom Rule', desc: 'Build a rule from scratch with custom conditions', iconBg: 'bg-bg', iconColor: 'text-text-secondary', icon: 'sliders', pill: null, defName: '', defDesc: '', defBehavior: 'flag', defActs: ['flag_invoice'] },
+  { key: 'amount', title: 'Amount threshold', desc: 'Flag invoices exceeding a configurable amount', iconBg: 'bg-flag-bg', iconColor: 'text-flag', icon: '\u20b9', pill: 'flag', defName: 'High value invoice', defDesc: 'Flag invoices exceeding amount threshold for additional review', defBehavior: 'flag', defActs: ['flag_invoice', 'require_review'] },
+  { key: 'duplicate', title: 'Duplicate detection', desc: 'Detect previously submitted invoice numbers', iconBg: 'bg-block-bg', iconColor: 'text-block', icon: 'copy', pill: 'block', defName: 'Duplicate invoice number', defDesc: 'Block when invoice number has already been submitted in the system', defBehavior: 'block', defActs: ['flag_invoice', 'block_approval'] },
+  { key: 'distributor', title: 'Distributor verification', desc: 'Check supplier against authorised distributor list for retailer', iconBg: 'bg-block-bg', iconColor: 'text-block', icon: 'shield', pill: 'block', defName: 'Unauthorised distributor', defDesc: 'Block when supplier is not in authorised distributor list for the retailer', defBehavior: 'block', defActs: ['flag_invoice', 'block_approval', 'send_notification'] },
+  { key: 'mismatch', title: 'Total mismatch', desc: 'Compare line item sum against invoice total', iconBg: 'bg-block-bg', iconColor: 'text-block', icon: 'calc', pill: 'block', defName: 'Mismatched totals', defDesc: 'Block when sum of line item amounts does not equal the invoice total', defBehavior: 'block', defActs: ['flag_invoice', 'block_approval'] },
+  { key: 'ocr', title: 'OCR quality check', desc: 'Flag low-confidence scans or amount mismatches', iconBg: 'bg-flag-bg', iconColor: 'text-flag', icon: 'doc', pill: 'flag', defName: 'OCR confidence low', defDesc: 'Flag when OCR scan confidence is below threshold or extracted amount mismatches entry', defBehavior: 'flag', defActs: ['flag_invoice'] },
+  { key: 'custom', title: 'Custom rule', desc: 'Build a rule from scratch with custom conditions', iconBg: 'bg-bg', iconColor: 'text-text-secondary', icon: 'sliders', pill: null, defName: '', defDesc: '', defBehavior: 'flag', defActs: ['flag_invoice'] },
 ];
 
 function TemplateIcon({ icon, className }) {
@@ -80,7 +80,7 @@ function DuplicateConfig({ cfg, onChange }) {
     <div className="bg-[#F8F9FF] border border-border rounded-lg p-4 mb-1">
       <div className="text-sm font-medium text-text mb-3 flex items-center gap-2">
         <svg width="16" height="16" fill="none" stroke="#F44336" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-        Duplicate Invoice Detection
+        Duplicate invoice detection
       </div>
       <div className="text-sm text-text mb-3">Alert when an invoice number has already been submitted in the system.</div>
       <div className="text-xs font-medium text-text-secondary mb-2">Duplicate check scope:</div>
@@ -646,7 +646,7 @@ export default function RuleBuilder({ editRule, onClose }) {
                     onChange={e => setEnabled(e.target.checked)}
                     className="sr-only peer"
                   />
-                  <span className="absolute inset-0 bg-[#ccc] rounded-full transition-colors peer-checked:bg-success" />
+                  <span className="absolute inset-0 bg-[#ccc] rounded-full transition-colors peer-checked:bg-toggle-on" />
                   <span className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4" />
                 </label>
                 <span className="text-[13px]">Rule is active</span>

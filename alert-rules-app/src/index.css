@@ -16,6 +16,7 @@
   --color-success-bg: #E8F5E9;
   --color-pending: #FFD700;
   --color-pending-bg: rgba(255, 215, 0, 0.13);
+  --color-toggle-on: #3e94ff;
   --font-sans: 'Roboto', system-ui, sans-serif;
 }
 

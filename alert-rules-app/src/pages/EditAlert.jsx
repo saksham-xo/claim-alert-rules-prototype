@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, AlertTriangle } from 'lucide-react';
 import { useStore } from '../data/store';
 import { getGroups, isGroupsComplete } from '../data/rules';
-import ConditionBuilder from '../components/shared/ConditionBuilder';
 
 const numericOps = [
   { v: 'equals', l: '=' },
@@ -51,6 +50,15 @@ const fieldDefs = [
 
 const noValueOps = ['is_empty', 'is_not_empty', 'is_true', 'is_false'];
 
+const fieldIndex = fieldDefs.flatMap(g => g.fields).reduce((acc, f) => ({ ...acc, [f.v]: f }), {});
+
+function fieldLabel(key) { return fieldIndex[key]?.l || key; }
+function opLabel(fieldKey, op) {
+  const field = fieldIndex[fieldKey];
+  const match = field?.ops.find(o => o.v === op);
+  return match?.l || op;
+}
+
 export default function EditAlert() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -61,6 +69,7 @@ export default function EditAlert() {
   const [name, setName] = useState(rule?.name || '');
   const [desc, setDesc] = useState(rule?.desc || '');
   const [groups, setGroups] = useState(rule ? getGroups(rule).map(g => g.map(c => ({ ...c }))) : [[{ f: '', op: '', val: '' }]]);
+  const [showAuditModal, setShowAuditModal] = useState(false);
 
   if (!rule) {
     return (
@@ -71,9 +80,28 @@ export default function EditAlert() {
     );
   }
 
-  const handleSave = () => {
+  const updateValue = (gi, ci, newVal) => {
+    setGroups(prev => prev.map((g, i) =>
+      i !== gi ? g : g.map((c, j) => j === ci ? { ...c, val: newVal } : c)
+    ));
+  };
+
+  const originalValues = JSON.stringify(getGroups(rule).map(g => g.map(c => c.val ?? '')));
+  const currentValues = JSON.stringify(groups.map(g => g.map(c => c.val ?? '')));
+  const valuesChanged = originalValues !== currentValues;
+
+  const validateAndSubmit = () => {
     if (!name.trim()) { showToast('Alert name is required'); return; }
+    if (!desc.trim()) { showToast('Description is required'); return; }
     if (!isGroupsComplete(groups, noValueOps)) { showToast('Complete all conditions'); return; }
+    if (valuesChanged) {
+      setShowAuditModal(true);
+    } else {
+      persistSave();
+    }
+  };
+
+  const persistSave = () => {
     saveRule({ ...rule, name: name.trim(), desc: desc.trim(), groups });
     showToast(`"${name.trim()}" updated`);
     navigate(`/partner-promotions/invoice-management/settings/alerts/${rule.id}`);
@@ -103,22 +131,18 @@ export default function EditAlert() {
               value={name}
               onChange={e => setName(e.target.value)}
               className="w-full px-3 py-2.5 border border-border rounded-lg text-sm text-text outline-none focus:border-primary"
-              placeholder="e.g. High Value Invoice"
+              placeholder="e.g. High value invoice"
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-text-secondary mb-1.5 block">Description</label>
+            <label className="text-xs font-medium text-text-secondary mb-1.5 block">Description *</label>
             <textarea
               rows={2}
               value={desc}
               onChange={e => setDesc(e.target.value)}
               className="w-full px-3 py-2.5 border border-border rounded-lg text-[13px] text-text outline-none resize-y focus:border-primary"
-              placeholder="Optional — describe what this alert checks"
+              placeholder="Describe what this alert checks"
             />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-text-secondary mb-1.5 block">Alert ID</label>
-            <div className="text-sm font-mono text-text-secondary">{rule.id}</div>
           </div>
         </div>
       </div>
@@ -127,13 +151,30 @@ export default function EditAlert() {
         <div className="px-6 py-4 border-b border-border">
           <h2 className="text-sm font-semibold text-text">Set Alert Conditions</h2>
         </div>
-        <div className="px-6 py-5">
-          <ConditionBuilder
-            groups={groups}
-            onChange={setGroups}
-            fieldDefs={fieldDefs}
-            noValueOps={noValueOps}
-          />
+        <div className="px-6 py-5 flex flex-col gap-3">
+          {groups.map((grp, gi) => (
+            grp.map((c, ci) => {
+              const isNoValue = noValueOps.includes(c.op);
+              const isNumeric = fieldIndex[c.f]?.numeric;
+              return (
+                <div key={`${gi}-${ci}`} className="grid grid-cols-3 gap-3">
+                  <div className="px-3 py-2.5 border border-border rounded-lg text-sm text-text bg-bg/50 cursor-not-allowed">{fieldLabel(c.f)}</div>
+                  <div className="px-3 py-2.5 border border-border rounded-lg text-sm text-text bg-bg/50 cursor-not-allowed">{opLabel(c.f, c.op)}</div>
+                  {isNoValue ? (
+                    <div className="px-3 py-2.5 border border-border rounded-lg text-sm text-text-secondary bg-bg/30 italic">No value needed</div>
+                  ) : (
+                    <input
+                      type={isNumeric ? 'number' : 'text'}
+                      value={c.val ?? ''}
+                      onChange={e => updateValue(gi, ci, e.target.value)}
+                      placeholder="Value"
+                      className="px-3 py-2.5 border border-border rounded-lg text-sm text-text bg-surface outline-none focus:border-primary placeholder:text-[#BDC5DA]"
+                    />
+                  )}
+                </div>
+              );
+            })
+          ))}
         </div>
       </div>
 
@@ -145,12 +186,45 @@ export default function EditAlert() {
           Cancel
         </button>
         <button
-          onClick={handleSave}
+          onClick={validateAndSubmit}
           className="bg-primary text-white px-5 py-2 rounded text-sm font-medium hover:bg-[#354499] transition-colors cursor-pointer"
         >
           Save Changes
         </button>
       </div>
+
+      {showAuditModal && (
+        <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center" onClick={() => setShowAuditModal(false)}>
+          <div className="bg-surface rounded-lg shadow-xl w-[480px]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={20} className="text-block" />
+                <span className="text-base font-semibold text-text">Save Alert Changes</span>
+              </div>
+              <button onClick={() => setShowAuditModal(false)} className="bg-transparent border-none cursor-pointer text-xl text-text-secondary">&times;</button>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-text leading-relaxed">
+                This action will be recorded in the Audit Trail. Click "Accept" to save your changes.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
+              <button
+                onClick={() => setShowAuditModal(false)}
+                className="text-primary px-4 py-2 rounded text-sm font-medium hover:bg-bg cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowAuditModal(false); persistSave(); }}
+                className="bg-primary text-white px-4 py-2 rounded text-sm font-medium hover:bg-[#354499] cursor-pointer"
+              >
+                Accept
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
