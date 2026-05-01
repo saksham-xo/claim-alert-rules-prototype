@@ -1,151 +1,131 @@
-import { useState } from 'react';
-import { X } from 'lucide-react';
-import { useStore } from '../data/store';
-import StatusPill from './shared/StatusPill';
-import InvoiceDetail from './shared/InvoiceDetail';
-import OverrideModal from './OverrideModal';
+import { useState, useMemo } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useStore, deriveOutcome } from '../data/store';
+import InvoiceContent, { RewardPointsInline } from './shared/InvoiceContent';
 import ActionModal from './ActionModal';
 
+/**
+ * Manual approval workflow — full-screen overlay that walks the reviewer through
+ * the queue of claims that didn't auto-approve.
+ *
+ * Queue = anything with a non-`auto_approved` outcome. The reviewer sees the same
+ * <InvoiceContent /> the View Invoice page uses, plus a workflow chrome around it
+ * (queue progress, prev/next, Reject/Approve, Exit Workflow).
+ */
 export default function ApprovalWorkflow({ onClose }) {
-  const { invoices, updateAlert, showToast } = useStore();
-  const pending = invoices.map((inv, i) => ({ inv, idx: i })).filter(x => x.inv.status === 'pending');
-  const [currentPos, setCurrentPos] = useState(0);
-  const [overrideTarget, setOverrideTarget] = useState(null);
+  const { invoices, showToast, setDecisionStatus } = useStore();
+  const [position, setPosition] = useState(0);
   const [actionModal, setActionModal] = useState(null);
 
-  const current = pending[currentPos];
-  if (!current) {
+  // Queue = anything still pending a manual decision.
+  const queue = useMemo(
+    () => invoices
+      .map((inv, i) => ({ inv, idx: i, outcome: deriveOutcome(inv.validationResults) }))
+      .filter(x => (x.inv.decisionStatus || 'pending') === 'pending'),
+    [invoices]
+  );
+
+  if (queue.length === 0) {
     return (
       <div className="fixed inset-0 bg-bg z-[150] flex flex-col overflow-hidden">
-        <div className="bg-surface border-b border-border px-6 py-3 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="text-base font-semibold">Approval Workflow</span>
-          </div>
-          <button onClick={onClose} className="bg-transparent border-none cursor-pointer text-xl text-text-secondary">&times;</button>
-        </div>
+        <WorkflowTopbar position={0} total={0} onClose={onClose} />
         <div className="flex-1 flex items-center justify-center text-text-secondary">
-          No pending invoices in queue.
+          No pending invoices in the queue. The auto-approval pipeline closed everything cleanly.
         </div>
       </div>
     );
   }
 
+  const current = queue[Math.min(position, queue.length - 1)];
   const inv = current.inv;
-  const invoiceIdx = current.idx;
-  const hasBlocking = inv.alerts.some(a => a.status === 'active' && a.behavior === 'block');
+  const points = inv.rewardPoints != null ? inv.rewardPoints : Math.round(inv.amount / 10);
 
-  const handleAck = (ii, ai) => {
-    updateAlert(ii, ai, { status: 'acknowledged' });
-    showToast('Alert acknowledged');
+  const advance = () => {
+    if (position < queue.length - 1) setPosition(position + 1);
+    else onClose();
   };
 
-  const handleOverride = (ii, ai) => {
-    setOverrideTarget({ ii, ai });
-  };
-
-  const handleOverrideConfirm = (reason) => {
-    if (!overrideTarget) return;
-    updateAlert(overrideTarget.ii, overrideTarget.ai, {
-      status: 'overridden',
-      overrideBy: 'saksham',
-      overrideReason: reason,
-    });
-    setOverrideTarget(null);
-    showToast('Alert overridden');
-  };
-
-  const handleAction = (kind) => {
-    setActionModal({ kind, num: inv.num });
-  };
-
+  const handleAction = (kind) => setActionModal({ kind, num: inv.num });
   const handleActionConfirm = () => {
-    showToast(`${inv.num} ${actionModal.kind}d`);
+    const next = actionModal.kind === 'approve' ? 'approved' : 'rejected';
+    setDecisionStatus(inv.claimId, next);
+    showToast(`${inv.num} ${next}`);
     setActionModal(null);
-    // Move to next or close
-    if (currentPos < pending.length - 1) {
-      setCurrentPos(currentPos + 1);
-    } else {
-      onClose();
-    }
+    advance();
   };
 
   return (
     <div className="fixed inset-0 bg-bg z-[150] flex flex-col overflow-hidden">
-      {/* Topbar */}
-      <div className="bg-surface border-b border-border px-6 py-3 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="text-base font-semibold">Approval Workflow</span>
-          <span className="bg-primary-light text-primary text-[11px] font-semibold px-2.5 py-1 rounded">
-            {pending.length} invoices in queue
-          </span>
-        </div>
-        <button onClick={onClose} className="bg-transparent border-none cursor-pointer text-xl text-text-secondary">&times;</button>
-      </div>
+      <WorkflowTopbar position={position} total={queue.length} onClose={onClose} />
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto px-20 py-6">
-        {/* Invoice header + actions */}
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <span className="text-base font-semibold">Invoice # {inv.num}</span>
-            <StatusPill status={inv.status} />
-          </div>
-          <div className="flex gap-2 items-start">
-            <button
-              onClick={() => handleAction('reject')}
-              className="bg-block text-white px-4 py-2 rounded text-sm font-medium hover:bg-[#E53935] cursor-pointer"
-            >
-              Reject
-            </button>
-            <div className="flex flex-col items-end">
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto px-10 py-6">
+        <div className="max-w-[1280px] mx-auto flex flex-col gap-5">
+          {/* Per-claim header bar with prev/next + actions */}
+          <div className="bg-surface rounded-lg shadow-[0_0_1px_1px_var(--color-border)] p-4 px-5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
               <button
-                onClick={() => hasBlocking ? null : handleAction('approve')}
-                disabled={hasBlocking}
-                className={`px-4 py-2 rounded text-sm font-medium cursor-pointer ${
-                  hasBlocking
-                    ? 'bg-[#A5D6A7] text-white cursor-not-allowed'
-                    : 'bg-success text-white hover:bg-[#43A047]'
+                onClick={() => setPosition(Math.max(0, position - 1))}
+                disabled={position === 0}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-[12px] font-medium transition-colors ${
+                  position === 0
+                    ? 'text-text-secondary/50 cursor-not-allowed'
+                    : 'text-primary hover:bg-primary-light cursor-pointer'
                 }`}
               >
-                Approve
+                <ChevronLeft size={14} /> Prev
               </button>
-              {hasBlocking && (
-                <div className="text-[11px] text-block mt-1">Resolve blocking alerts first</div>
-              )}
+              <span className="text-[12px] text-text-secondary">
+                Invoice <span className="font-semibold text-text">{position + 1}</span> of {queue.length}
+              </span>
+              <button
+                onClick={() => setPosition(Math.min(queue.length - 1, position + 1))}
+                disabled={position === queue.length - 1}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-[12px] font-medium transition-colors ${
+                  position === queue.length - 1
+                    ? 'text-text-secondary/50 cursor-not-allowed'
+                    : 'text-primary hover:bg-primary-light cursor-pointer'
+                }`}
+              >
+                Next <ChevronRight size={14} />
+              </button>
+            </div>
+            <div className="flex items-center gap-4">
+              <RewardPointsInline points={points} />
+              <div className="h-9 w-px bg-border" />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleAction('reject')}
+                  className="bg-[#E53935] hover:bg-[#D32F2F] text-white px-5 py-2 rounded text-[13px] font-semibold cursor-pointer transition-colors"
+                >
+                  Reject
+                </button>
+                <button
+                  onClick={() => handleAction('approve')}
+                  className="bg-success hover:bg-[#388E3C] text-white px-5 py-2 rounded text-[13px] font-semibold cursor-pointer transition-colors"
+                >
+                  Approve
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        <InvoiceDetail
-          inv={inv}
-          invoiceIdx={invoiceIdx}
-          onAck={handleAck}
-          onOverride={handleOverride}
-          showToast={showToast}
-        />
+          <InvoiceContent inv={inv} />
+        </div>
       </div>
 
       {/* Footer */}
       <div className="bg-surface border-t border-border px-6 py-3 shrink-0">
-        <button
-          onClick={onClose}
-          className="bg-surface text-primary border border-primary px-4 py-1.5 rounded text-xs font-medium hover:bg-primary-light cursor-pointer"
-        >
-          Exit Workflow
-        </button>
+        <div className="max-w-[1280px] mx-auto">
+          <button
+            onClick={onClose}
+            className="bg-surface text-primary border border-primary px-4 py-1.5 rounded text-xs font-medium hover:bg-primary-light cursor-pointer"
+          >
+            Exit Workflow
+          </button>
+        </div>
       </div>
 
-      {/* Override modal */}
-      {overrideTarget && (
-        <OverrideModal
-          alert={inv.alerts[overrideTarget.ai]}
-          onClose={() => setOverrideTarget(null)}
-          onConfirm={handleOverrideConfirm}
-          showToast={showToast}
-        />
-      )}
-
-      {/* Action modal */}
       {actionModal && (
         <ActionModal
           kind={actionModal.kind}
@@ -154,6 +134,22 @@ export default function ApprovalWorkflow({ onClose }) {
           onConfirm={handleActionConfirm}
         />
       )}
+    </div>
+  );
+}
+
+function WorkflowTopbar({ position, total, onClose }) {
+  return (
+    <div className="bg-surface border-b border-border px-6 py-3 flex items-center justify-between shrink-0">
+      <div className="flex items-center gap-3">
+        <span className="text-base font-semibold">Approval Workflow</span>
+        {total > 0 && (
+          <span className="bg-primary-light text-primary text-[11px] font-semibold px-2.5 py-1 rounded">
+            {total} invoice{total === 1 ? '' : 's'} in queue
+          </span>
+        )}
+      </div>
+      <button onClick={onClose} className="bg-transparent border-none cursor-pointer text-xl text-text-secondary hover:text-text">&times;</button>
     </div>
   );
 }

@@ -21,15 +21,18 @@ export default function Popover({ items }) {
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 bg-surface border border-border rounded-lg shadow-lg py-1 z-50 min-w-[140px]">
-          {items.map((item, i) => (
-            <button
-              key={i}
-              onClick={() => { setOpen(false); item.onClick(); }}
-              className={`block w-full text-left px-3.5 py-2 text-[13px] hover:bg-bg cursor-pointer ${item.danger ? 'text-block' : 'text-text'} ${item.success ? 'text-success' : ''}`}
-            >
-              {item.label}
-            </button>
-          ))}
+          {items.map((item, i) => {
+            const color = item.success ? 'text-success font-medium' : item.danger ? 'text-block font-medium' : 'text-text';
+            return (
+              <button
+                key={i}
+                onClick={() => { setOpen(false); item.onClick(); }}
+                className={`block w-full text-left px-3.5 py-2 text-[13px] hover:bg-bg cursor-pointer ${color}`}
+              >
+                {item.label}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

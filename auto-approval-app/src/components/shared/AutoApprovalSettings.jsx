@@ -1,32 +1,36 @@
 import { useState, Fragment } from 'react';
-import { Lock, AlertTriangle, FileText, ClipboardCheck, ShieldCheck, CheckCircle, ChevronDown, Pencil } from 'lucide-react';
+import { AlertTriangle, FileText, ClipboardCheck, ShieldCheck, CheckCircle, ChevronDown, Pencil } from 'lucide-react';
 import { useStore, VALIDATION_META, VALIDATION_CATEGORIES } from '../../data/store';
 import RefNote from './RefNote';
 
 /**
  * Auto-Approval settings panel.
  *
- * Configuration pattern (Option A — value chip + pencil-to-expand):
- *   - Each row's description text shows configured values inline as styled chips.
- *   - A small pencil icon at the end of the description triggers an inline editor sub-row.
- *   - The editor supports multiple threshold inputs in one row (e.g. "Submission burst" has hourly + daily limits).
- *   - Save fires the audit confirm modal once for the whole row (covers all changed fields).
+ * Toggle behaviour (all toggles route through the same audit-trail modal):
+ *   - Master toggle is OFF by default. Enabling it cascades Cat 1 + Cat 2 children to ON.
+ *     Disabling it cascades Cat 1 + Cat 2 children to OFF.
+ *   - Cat 3 (fraud detection) is always-on; its category and child toggles are locked.
+ *     Fraud detection runs whether or not auto-approval is enabled (it's part of the
+ *     alerts framework).
+ *   - Cat 1 / Cat 2 category toggles cascade to all their children — clubbed into one
+ *     audit entry.
+ *   - Individual rule toggles (Cat 1 / Cat 2) go in as their own audit entry.
+ *   - Threshold edits (pencil) go in as their own audit entry per row.
  *
- * Row toggle vs threshold editability:
- *   - Cat 3 (Fraud detection) toggles are LOCKED (always-on).
- *   - Cat 3 thresholds are still editable. Clicking the pencil works regardless of toggle lock.
+ * Every accepted change is appended to the platform Approval Workflow log via
+ * `logApprovalWorkflowEntry`.
  */
 export default function AutoApprovalSettings() {
   const {
-    autoApprovalEnabled,
-    autoApprovalSettings, toggleValidation, setValidationThreshold,
-    showToast, toggleAutoApprovalEnabled,
+    autoApprovalEnabled, setAutoApprovalEnabledTo,
+    autoApprovalSettings, toggleValidation, applyValidationOnUpdates,
+    setValidationThreshold, showToast, logApprovalWorkflowEntry,
   } = useStore();
 
-  // Each category's expand/collapse state. Cat 3 collapsed by default since it's locked.
-  const [expanded, setExpanded] = useState({ 1: true, 2: true, 3: false });
+  // Categories collapsed by default — reviewer expands what they want to look at.
+  const [expanded, setExpanded] = useState({ 1: false, 2: false, 3: false });
 
-  // Which row's editor is currently expanded (one at a time)
+  // Which row's threshold editor is currently open (one at a time).
   const [editingRowId, setEditingRowId] = useState(null);
   // Drafts keyed by `${rowId}:${field}`
   const [drafts, setDrafts] = useState({});
@@ -77,7 +81,6 @@ export default function AutoApprovalSettings() {
       cancelEditing();
       return;
     }
-    // Validate all
     for (const c of changes) {
       if (c.draftVal !== '' && !(parseFloat(c.draftVal) > 0)) {
         showToast(`"${c.threshold.label}" must be greater than zero`);
@@ -87,35 +90,98 @@ export default function AutoApprovalSettings() {
     setPendingConfirm({ kind: 'threshold', settings, meta, changes });
   };
 
-  const handleMasterToggleRequest = () => {
-    setPendingConfirm({ kind: 'master', currentState: autoApprovalEnabled });
-  };
-
+  // ── Master / category / row toggle requests ──────────────────────────────
+  // For all categories, "category on" = at least one child rule is on. Cat 3
+  // children move in lockstep with the master toggle, so its derived state
+  // matches the master.
   const isCategoryOn = (catId) => {
-    if (catId === 3) return true;
     const childIds = VALIDATION_META.filter(m => m.category === catId).map(m => m.id);
     return autoApprovalSettings.some(s => childIds.includes(s.id) && s.on);
   };
 
-  const toggleCategory = (catId) => {
-    if (catId === 3) return;
-    const desired = !isCategoryOn(catId);
-    VALIDATION_META.filter(m => m.category === catId).forEach(m => {
-      const s = autoApprovalSettings.find(x => x.id === m.id);
-      if (s && s.on !== desired) toggleValidation(m.id);
+  const handleMasterToggleRequest = () => {
+    const turningOn = !autoApprovalEnabled;
+    // Cascade: every non-locked rule flips with the master, including Cat 3
+    // (fraud detection is tied to the master toggle and can't be edited
+    // independently).
+    const cascadeIds = VALIDATION_META
+      .filter(m => !m.locked)
+      .map(m => m.id);
+    setPendingConfirm({
+      kind: 'master',
+      turningOn,
+      cascadeIds,
+      cascadeCount: cascadeIds.length,
     });
   };
 
+  const handleCategoryToggleRequest = (catId) => {
+    if (catId === 3) return;
+    if (!autoApprovalEnabled) return;
+    const turningOn = !isCategoryOn(catId);
+    const childIds = VALIDATION_META
+      .filter(m => m.category === catId && !m.locked)
+      .map(m => m.id);
+    setPendingConfirm({
+      kind: 'category',
+      catId,
+      turningOn,
+      childIds,
+      childCount: childIds.length,
+    });
+  };
+
+  const handleRowToggleRequest = (meta, settings) => {
+    if (!autoApprovalEnabled) return;
+    if (meta.category === 3 || meta.locked) return;
+    const turningOn = !settings.on;
+    setPendingConfirm({ kind: 'row', meta, turningOn });
+  };
+
+  // ── Confirm / cancel ─────────────────────────────────────────────────────
   const acceptPending = () => {
     if (pendingConfirm.kind === 'master') {
-      toggleAutoApprovalEnabled();
-      showToast(`Auto-approval ${autoApprovalEnabled ? 'disabled' : 'enabled'} — logged to audit trail`);
-    } else {
+      const { turningOn, cascadeIds } = pendingConfirm;
+      setAutoApprovalEnabledTo(turningOn);
+      applyValidationOnUpdates(cascadeIds.map(id => ({ id, on: turningOn })));
+      logApprovalWorkflowEntry({
+        request: turningOn ? 'Auto-approval enabled' : 'Auto-approval disabled',
+        module: 'Auto-Approval',
+        description: turningOn
+          ? `Enabled auto-approval. ${cascadeIds.length} rules switched on across all three categories.`
+          : `Disabled auto-approval. ${cascadeIds.length} rules switched off across all three categories.`,
+      });
+      showToast(`Auto-approval ${turningOn ? 'enabled' : 'disabled'} — logged to Approval Workflow`);
+    } else if (pendingConfirm.kind === 'category') {
+      const { catId, turningOn, childIds } = pendingConfirm;
+      applyValidationOnUpdates(childIds.map(id => ({ id, on: turningOn })));
+      const catName = VALIDATION_CATEGORIES[catId].name;
+      logApprovalWorkflowEntry({
+        request: `${catName} ${turningOn ? 'enabled' : 'disabled'}`,
+        module: 'Auto-Approval',
+        description: `${turningOn ? 'Enabled' : 'Disabled'} ${childIds.length} rules in "${catName}".`,
+      });
+      showToast(`${catName} ${turningOn ? 'enabled' : 'disabled'} — logged to Approval Workflow`);
+    } else if (pendingConfirm.kind === 'row') {
+      const { meta, turningOn } = pendingConfirm;
+      toggleValidation(meta.id);
+      logApprovalWorkflowEntry({
+        request: `Rule ${turningOn ? 'enabled' : 'disabled'} — ${meta.name}`,
+        module: 'Auto-Approval',
+        description: `${turningOn ? 'Enabled' : 'Disabled'} validation "${meta.name}".`,
+      });
+      showToast(`"${meta.name}" ${turningOn ? 'enabled' : 'disabled'} — logged to Approval Workflow`);
+    } else if (pendingConfirm.kind === 'threshold') {
       const { settings, meta, changes } = pendingConfirm;
       changes.forEach(c => {
         setValidationThreshold(settings.id, c.threshold.field, parseFloat(c.draftVal));
       });
-      showToast(`"${meta.name}" updated — logged to audit trail`);
+      logApprovalWorkflowEntry({
+        request: `Thresholds updated — ${meta.name}`,
+        module: 'Auto-Approval',
+        description: `Updated ${changes.length} threshold${changes.length === 1 ? '' : 's'} for "${meta.name}".`,
+      });
+      showToast(`"${meta.name}" updated — logged to Approval Workflow`);
       clearRowDrafts(meta.id);
       setEditingRowId(null);
     }
@@ -160,7 +226,7 @@ export default function AutoApprovalSettings() {
         <RefNote kind="replicate">
           Category list + universal/category/item toggle pattern same as <em>Manage Team → Manage Roles → Creating a New Role</em>.
         </RefNote>
-        <div className={`flex flex-col gap-3 transition-opacity ${autoApprovalEnabled ? '' : 'opacity-60 pointer-events-none'}`}>
+        <div className="flex flex-col gap-3">
           {[1, 2, 3].map(catId => (
             <CategoryBlock
               key={catId}
@@ -168,9 +234,9 @@ export default function AutoApprovalSettings() {
               expanded={expanded[catId]}
               onToggleExpand={() => setExpanded(prev => ({ ...prev, [catId]: !prev[catId] }))}
               categoryOn={isCategoryOn(catId)}
-              onToggleCategory={() => toggleCategory(catId)}
+              onToggleCategory={() => handleCategoryToggleRequest(catId)}
               autoApprovalSettings={autoApprovalSettings}
-              toggleValidation={toggleValidation}
+              onToggleRow={handleRowToggleRequest}
               editingRowId={editingRowId}
               onStartEditing={startEditing}
               onCancelEditing={cancelEditing}
@@ -178,37 +244,84 @@ export default function AutoApprovalSettings() {
               drafts={drafts}
               setDraft={setDraft}
               valueFor={valueFor}
+              masterEnabled={autoApprovalEnabled}
             />
           ))}
         </div>
       </div>
 
       {pendingConfirm && (
-        <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center" onClick={cancelPending}>
-          <div className="bg-surface rounded-lg shadow-xl w-[480px]" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <div className="flex items-center gap-2">
-                <AlertTriangle size={20} className="text-block" />
-                <span className="text-base font-semibold text-text">Save Auto-Approval Changes</span>
-              </div>
-              <button onClick={cancelPending} className="bg-transparent border-none cursor-pointer text-xl text-text-secondary">&times;</button>
-            </div>
-            <div className="p-5 text-sm text-text leading-relaxed">
-              {pendingConfirm.kind === 'master' && (
-                <>You are about to <strong>{autoApprovalEnabled ? 'disable' : 'enable'}</strong> auto-approval for this program. </>
-              )}
-              {pendingConfirm.kind === 'threshold' && (
-                <>You are about to update {pendingConfirm.changes.length} setting{pendingConfirm.changes.length === 1 ? '' : 's'} for <strong>"{pendingConfirm.meta.name}"</strong>. </>
-              )}
-              This action will be recorded in the Audit Trail. Click "Accept" to save your changes.
-            </div>
-            <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
-              <button onClick={cancelPending} className="text-primary px-4 py-2 rounded text-sm font-medium hover:bg-bg cursor-pointer">Cancel</button>
-              <button onClick={acceptPending} className="bg-primary text-white px-4 py-2 rounded text-sm font-medium hover:bg-[#354499] cursor-pointer">Accept</button>
-            </div>
+        <ConfirmModal
+          pending={pendingConfirm}
+          onCancel={cancelPending}
+          onAccept={acceptPending}
+          autoApprovalEnabled={autoApprovalEnabled}
+        />
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────────
+// Confirm modal — copy varies by `kind`
+// ───────────────────────────────────────────────────────────────────────────────
+function ConfirmModal({ pending, onCancel, onAccept, autoApprovalEnabled }) {
+  let title = 'Confirm Change';
+  let body = null;
+
+  if (pending.kind === 'master') {
+    title = pending.turningOn ? 'Enable Auto-Approval' : 'Disable Auto-Approval';
+    body = (
+      <>
+        You are about to <strong>{pending.turningOn ? 'enable' : 'disable'}</strong> auto-approval for this program.
+        {' '}
+        {pending.turningOn
+          ? <>This will turn on <strong>{pending.cascadeCount}</strong> validation rules across Data Extraction, Business Rules, and Fraud Detection.</>
+          : <>This will turn off all <strong>{pending.cascadeCount}</strong> validation rules across Data Extraction, Business Rules, and Fraud Detection.</>}
+      </>
+    );
+  } else if (pending.kind === 'category') {
+    const cat = VALIDATION_CATEGORIES[pending.catId];
+    title = `${pending.turningOn ? 'Enable' : 'Disable'} ${cat.name}`;
+    body = (
+      <>
+        You are about to <strong>{pending.turningOn ? 'enable' : 'disable'}</strong> the entire <strong>"{cat.name}"</strong> category.
+        {' '}This affects <strong>{pending.childCount}</strong> validation rule{pending.childCount === 1 ? '' : 's'}.
+      </>
+    );
+  } else if (pending.kind === 'row') {
+    title = `${pending.turningOn ? 'Enable' : 'Disable'} Rule`;
+    body = (
+      <>You are about to <strong>{pending.turningOn ? 'enable' : 'disable'}</strong> the rule <strong>"{pending.meta.name}"</strong>.</>
+    );
+  } else if (pending.kind === 'threshold') {
+    title = 'Update Thresholds';
+    body = (
+      <>You are about to update <strong>{pending.changes.length}</strong> threshold{pending.changes.length === 1 ? '' : 's'} for <strong>"{pending.meta.name}"</strong>.</>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center" onClick={onCancel}>
+      <div className="bg-surface rounded-lg shadow-xl w-[480px]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={20} className="text-block" />
+            <span className="text-base font-semibold text-text">{title}</span>
+          </div>
+          <button onClick={onCancel} className="bg-transparent border-none cursor-pointer text-xl text-text-secondary">&times;</button>
+        </div>
+        <div className="p-5 text-sm text-text leading-relaxed">
+          {body}
+          <div className="mt-3 text-[12px] text-text-secondary">
+            This change will be recorded in the <strong>Audit Trail</strong> and added as a request to the platform <strong>Approval Workflow</strong>.
           </div>
         </div>
-      )}
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
+          <button onClick={onCancel} className="text-primary px-4 py-2 rounded text-sm font-medium hover:bg-bg cursor-pointer">Cancel</button>
+          <button onClick={onAccept} className="bg-primary text-white px-4 py-2 rounded text-sm font-medium hover:bg-[#354499] cursor-pointer">Accept</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -256,13 +369,28 @@ function FlowDiagram({ dimmed }) {
 function CategoryBlock({
   catId, expanded, onToggleExpand,
   categoryOn, onToggleCategory,
-  autoApprovalSettings, toggleValidation,
+  autoApprovalSettings, onToggleRow,
   editingRowId, onStartEditing, onCancelEditing, onSaveRow,
-  drafts, setDraft, valueFor,
+  drafts, setDraft, valueFor, masterEnabled,
 }) {
   const cat = VALIDATION_CATEGORIES[catId];
-  const isLocked = catId === 3;
-  const items = VALIDATION_META.filter(m => m.category === catId);
+  // Cat 3 (Fraud detection) is locked-to-master: its toggles always reflect
+  // the master state and can't be flipped independently.
+  const isFraud = catId === 3;
+  // Sort: threshold-bearing rules first (so the editable knobs cluster at the
+  // top of each category and are easier to scan).
+  const items = VALIDATION_META
+    .filter(m => m.category === catId)
+    .slice()
+    .sort((a, b) => {
+      const aHas = (a.thresholds?.length || 0) > 0 ? 1 : 0;
+      const bHas = (b.thresholds?.length || 0) > 0 ? 1 : 0;
+      return bHas - aHas;
+    });
+  // Toggle disabled rules: Cat 3 toggles are always disabled (slave to master).
+  // Cat 1/2 toggles are disabled only when master is off.
+  const categoryToggleDisabled = isFraud || !masterEnabled;
+  const rowsDimmed = !masterEnabled;
 
   return (
     <div className="bg-surface rounded-lg border border-border overflow-hidden">
@@ -275,21 +403,20 @@ function CategoryBlock({
           <Toggle
             checked={categoryOn}
             onChange={onToggleCategory}
-            disabled={isLocked}
-            title={isLocked ? 'Always on — cannot be turned off' : ''}
+            disabled={categoryToggleDisabled}
+            title={
+              isFraud ? 'Tied to the auto-approval toggle — cannot be edited separately'
+                : !masterEnabled ? 'Enable auto-approval first'
+                : ''
+            }
           />
           <h2 className="text-[14px] font-semibold text-primary">{cat.name}</h2>
-          {isLocked && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-text-secondary bg-bg border border-border px-1.5 py-0.5 rounded">
-              <Lock size={9} /> Always on
-            </span>
-          )}
         </div>
         <ChevronDown size={16} className={`text-text-secondary transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </div>
 
       {expanded && (
-        <div className="border-t border-border">
+        <div className={`border-t border-border ${rowsDimmed ? 'opacity-60' : ''}`}>
           {/* Column headers */}
           <div className="grid grid-cols-[80px_minmax(0,1fr)_minmax(0,1.6fr)] gap-4 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-text-secondary bg-bg/50 border-b border-border">
             <div>Toggle</div>
@@ -305,8 +432,8 @@ function CategoryBlock({
                 key={meta.id}
                 meta={meta}
                 settings={settings}
-                rowLocked={isLocked || meta.locked}
-                onToggle={() => toggleValidation(meta.id)}
+                rowLocked={isFraud || meta.locked || !masterEnabled}
+                onToggle={() => onToggleRow(meta, settings)}
                 isEditing={editingRowId === meta.id}
                 onStartEditing={() => onStartEditing(meta.id)}
                 onCancelEditing={onCancelEditing}
@@ -345,16 +472,11 @@ function ValidationRow({
             checked={settings.on}
             onChange={onToggle}
             disabled={rowLocked}
-            title={rowLocked ? 'Always on — cannot be turned off' : ''}
+            title={rowLocked ? 'Tied to the auto-approval toggle' : ''}
           />
         </div>
         <div className="flex items-start gap-2">
           <span className="text-sm font-medium text-text leading-tight">{meta.name}</span>
-          {rowLocked && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-text-secondary bg-bg border border-border px-1.5 py-0.5 rounded shrink-0">
-              <Lock size={9} /> Always on
-            </span>
-          )}
         </div>
         <div className="text-[13px] text-text-secondary leading-snug flex items-baseline gap-1.5 flex-wrap">
           {renderDescription(meta.desc, meta.thresholds, settings)}
@@ -372,7 +494,7 @@ function ValidationRow({
 
       {isEditing && hasThresholds && (
         <div className="grid grid-cols-[80px_minmax(0,1fr)] gap-4 mt-3">
-          <div /> {/* spacer aligned with Toggle column */}
+          <div />
           <div className="flex flex-col gap-3 bg-bg/50 border border-border rounded-lg p-4">
             <div className={`grid gap-3 ${meta.thresholds.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
               {meta.thresholds.map(t => (
@@ -425,7 +547,6 @@ function renderDescription(template, thresholds, settings) {
   if (!template) return null;
   if (!thresholds || thresholds.length === 0) return template;
 
-  // Split on {fieldName} placeholders (capturing them)
   const parts = template.split(/(\{[a-zA-Z]+\})/);
   return parts.map((part, i) => {
     const m = part.match(/^\{([a-zA-Z]+)\}$/);
