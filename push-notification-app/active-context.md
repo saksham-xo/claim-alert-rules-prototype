@@ -66,28 +66,24 @@ Push only appears when the user creates/edits a template through the
 prototype — that's the demo: before/after.
 
 ## Repo
-- **GitHub:** https://github.com/saksham-xo/partner-promotions-prototypes (private)
-- Renamed from `loyalife-push-notification-prototype` per Saksham's
-  request — the new name signals this is the umbrella repo for all P&P
-  prototypes going forward.
-- Initial commit `f0aaf4f` pushed to `main` (only contains the
-  push-notification-app contents at repo root currently). The parent
-  `Documents/loyalife/` is intentionally NOT a git repo.
-- `.gitignore` excludes `node_modules/` and `dist/`.
+- **GitHub:** https://github.com/saksham-xo/loyalife-push-notification-prototype (private)
+- This is the existing umbrella repo (was named `claim-alert-rules-prototype`,
+  renamed 2026-05-05) that holds all Loyalife Partners & Promotions
+  prototypes — `alert-rules-app/`, `auto-approval-app/`, and now
+  `push-notification-app/` as siblings.
+- Local clone: `~/Documents/loyalife/projects/partners-promotions/`
+- Initial commit for this app: `69dd5df` on `main`.
+- Per-app `.gitignore` matches the existing app convention
+  (`node_modules`, `dist`, etc.).
 
-## Repo structure follow-up (open)
-The repo root is currently the **push-notification-app contents
-themselves** (package.json/src/etc. at root) — this is fine if this is
-the only app, but mismatches the umbrella name. Two options for next
-session:
-1. **Restructure** — move all root files into `push-notification-app/`
-   and make future prototypes siblings (`alert-rules-app/`,
-   `auto-approval-app/`, etc.). Cleanest long-term.
-2. **Leave flat** — accept that this repo holds one app and add more
-   prototypes via separate repos. Simpler short-term.
-- Saksham has a related earlier repo at
-  https://github.com/saksham-xo/claim-alert-rules-prototype that could
-  also be consolidated under this umbrella if option 1 is chosen.
+## Cleanup TODO (manual — needs admin scope on token)
+Earlier in the session I mistakenly created a separate repo
+`saksham-xo/loyalife-push-notification-prototype` (later renamed to
+`saksham-xo/partner-promotions-prototypes`). It still exists as an empty
+orphan because the local `gh` token lacks `delete_repo` scope.
+To clean up: `gh auth refresh -h github.com -s delete_repo` then
+`gh repo delete saksham-xo/partner-promotions-prototypes --yes`,
+or just delete via the GitHub web UI.
 
 ## Open questions for next session
 - Is there a parent monorepo? If yes, where? (`Documents/loyalife/`
