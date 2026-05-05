@@ -66,24 +66,15 @@ Push only appears when the user creates/edits a template through the
 prototype — that's the demo: before/after.
 
 ## Repo
-- **GitHub:** https://github.com/saksham-xo/loyalife-push-notification-prototype (private)
-- This is the existing umbrella repo (was named `claim-alert-rules-prototype`,
-  renamed 2026-05-05) that holds all Loyalife Partners & Promotions
-  prototypes — `alert-rules-app/`, `auto-approval-app/`, and now
-  `push-notification-app/` as siblings.
+- **GitHub:** https://github.com/saksham-xo/partner-promotions-prototypes (public)
+- This is the umbrella repo (was named `claim-alert-rules-prototype`,
+  renamed 2026-05-05 by Saksham) that holds all Loyalife Partners &
+  Promotions prototypes — `alert-rules-app/`, `auto-approval-app/`, and
+  now `push-notification-app/` as siblings.
 - Local clone: `~/Documents/loyalife/projects/partners-promotions/`
 - Initial commit for this app: `69dd5df` on `main`.
 - Per-app `.gitignore` matches the existing app convention
   (`node_modules`, `dist`, etc.).
-
-## Cleanup TODO (manual — needs admin scope on token)
-Earlier in the session I mistakenly created a separate repo
-`saksham-xo/loyalife-push-notification-prototype` (later renamed to
-`saksham-xo/partner-promotions-prototypes`). It still exists as an empty
-orphan because the local `gh` token lacks `delete_repo` scope.
-To clean up: `gh auth refresh -h github.com -s delete_repo` then
-`gh repo delete saksham-xo/partner-promotions-prototypes --yes`,
-or just delete via the GitHub web UI.
 
 ## Open questions for next session
 - Is there a parent monorepo? If yes, where? (`Documents/loyalife/`
