@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0070FF;
+  --color-primary-hover: #0061DB;
+  --color-primary-soft: #E5F3FF;
+  --color-primary-tint: #BADCFF;
+  --color-text: #242424;
+  --color-text-muted: #4F516E;
+  --color-text-secondary: #607A9F;
+  --color-text-faint: #686C9D;
+  --color-border: #DADCEE;
+  --color-border-soft: #E5F3FF;
+  --color-page: #EBF1F4;
+  --color-surface: #FFFFFF;
+  --color-surface-soft: #F6FAFC;
+  --color-accent-yellow: #FFF7E5;
+  --color-accent-yellow-strong: #FFB200;
+
+  --color-sms: #9D00FF;
+  --color-sms-bg: #F9EBFF;
+  --color-email: #F86900;
+  --color-email-bg: #FFF1E5;
+  --color-whatsapp: #128C7E;
+  --color-whatsapp-bg: #E0F4F1;
+  --color-push: #0070FF;
+  --color-push-bg: #E5F3FF;
+
+  --color-success: #18B864;
+  --color-success-bg: #E5F8EE;
+  --color-danger: #E53935;
+  --color-danger-bg: #FDEBEC;
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Comfortaa', 'Inter', sans-serif;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--color-text);
+  background: var(--color-page);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Hide native scrollbar styling cleanup */
+.scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: #cfd6e3; border-radius: 4px; }
+.scroll-thin::-webkit-scrollbar-track { background: transparent; }
