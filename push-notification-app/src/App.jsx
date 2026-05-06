@@ -6,6 +6,11 @@ import Toast from './components/shared/Toast';
 import Communication from './pages/Communication';
 import CreateTemplate from './pages/CreateTemplate';
 import ViewTemplate from './pages/ViewTemplate';
+import Segments from './pages/Segments';
+import ViewSegment from './pages/ViewSegment';
+import Campaigns from './pages/Campaigns';
+import ViewCampaign from './pages/ViewCampaign';
+import Notifications from './pages/Notifications';
 
 export default function App() {
   return (
@@ -21,7 +26,12 @@ export default function App() {
                 <Sidebar />
                 <main className="flex-1 min-w-0">
                   <Routes>
-                    <Route path="/" element={<Navigate to="/communication" replace />} />
+                    <Route path="/" element={<Navigate to="/segments" replace />} />
+                    <Route path="/segments" element={<Segments />} />
+                    <Route path="/segments/:id" element={<ViewSegment />} />
+                    <Route path="/campaigns" element={<Campaigns />} />
+                    <Route path="/campaigns/:id" element={<ViewCampaign />} />
+                    <Route path="/notifications" element={<Notifications />} />
                     <Route path="/communication" element={<Communication />} />
                     <Route path="/communication/new" element={<CreateTemplate mode="create" />} />
                     <Route path="/communication/:id" element={<ViewTemplate />} />

@@ -4,6 +4,7 @@ import { X, Info, ChevronDown } from 'lucide-react';
 import { useStore, EVENTS, CHANNELS } from '../data/store';
 import ChannelCard from '../components/shared/ChannelCard';
 import SetupChannelModal from '../components/shared/SetupChannelModal';
+import SetupPushPage from '../components/shared/SetupPushPage';
 import Modal from '../components/shared/Modal';
 
 const blank = {
@@ -76,7 +77,7 @@ export default function CreateTemplate({ mode = 'create' }) {
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto scroll-thin">
-        <div className="max-w-[1024px] mx-auto p-6 flex flex-col gap-4">
+        <div className="p-6 flex flex-col gap-4">
           {/* Template Details */}
           <Section title="Template Details">
             <Field label="Template Name" required hint={`${form.name.length}/100`}>
@@ -182,16 +183,28 @@ export default function CreateTemplate({ mode = 'create' }) {
       </div>
 
       <SetupChannelModal
-        open={!!setupChannel}
+        open={!!setupChannel && setupChannel !== 'push'}
         channel={setupChannel}
         value={setupChannel ? form[setupChannel] : null}
         onClose={() => setSetupChannel(null)}
         onSave={(data) => {
           updateChannelData(setupChannel, data);
           setSetupChannel(null);
-          showToast(`${setupChannel === 'push' ? 'Push notification' : setupChannel.toUpperCase()} content saved.`);
+          showToast(`${setupChannel.toUpperCase()} content saved.`);
         }}
       />
+
+      {setupChannel === 'push' && (
+        <SetupPushPage
+          value={form.push}
+          onClose={() => setSetupChannel(null)}
+          onSave={(data) => {
+            updateChannelData('push', data);
+            setSetupChannel(null);
+            showToast('Push notification content saved.');
+          }}
+        />
+      )}
 
       <Modal
         open={confirmOpen}

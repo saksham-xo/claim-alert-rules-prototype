@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutGrid, Users, SlidersHorizontal, Trophy, FileSearch,
-  PieChart, Megaphone, MessageSquareText,
+  PieChart, Megaphone, MessageSquareText, Bell,
   FileText, BarChart3,
   UserCog, ShieldCheck, ScrollText,
   Settings,
@@ -23,9 +23,10 @@ const SECTIONS = [
   {
     label: 'Engage',
     items: [
-      { icon: PieChart,           label: 'Segments' },
-      { icon: Megaphone,          label: 'Campaigns' },
-      { icon: MessageSquareText,  label: 'Communication', to: '/communication', active: true },
+      { icon: PieChart,           label: 'Segments',      to: '/segments' },
+      { icon: Megaphone,          label: 'Campaigns',     to: '/campaigns' },
+      { icon: Bell,               label: 'Notifications', to: '/notifications' },
+      { icon: MessageSquareText,  label: 'Communication', to: '/communication' },
     ],
   },
   {

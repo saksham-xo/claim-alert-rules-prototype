@@ -29,11 +29,19 @@ const blankChannelData = {
   push:     { title: '', body: '', deepLink: '', image: '' },
 };
 
+const blankPerf = {
+  email:    { sent: 0, successRate: 0 },
+  sms:      { sent: 0, successRate: 0 },
+  whatsapp: { sent: 0, successRate: 0 },
+  push:     { sent: 0, successRate: 0 },
+};
+
 /**
  * Seeded to match the actual Lupin Communication > Manage Templates state
- * (snapshot 2026-05). All channels currently empty/inactive; only LBMS
- * Member OTP has SMS configured. Push is unsupported in production today —
+ * (snapshot 2026-05). Push is unsupported in production today —
  * this prototype shows what enabling it would look like.
+ * Claim Approved, Claim Rejected, and New Scheme Launched have push
+ * pre-configured to demo the full view-template experience.
  */
 const initialTemplates = [
   {
@@ -47,6 +55,7 @@ const initialTemplates = [
     totalSent: 0,
     successRate: 0,
     ...blankChannelData,
+    perf: { ...blankPerf },
     createdOn: '12 Jul, 2022',
     lastEdited: '13 May, 2024',
     lastEditedBy: 'Purushotham',
@@ -58,10 +67,20 @@ const initialTemplates = [
     event: 'user_approval_approved',
     sensitive: false,
     enabled: false,
-    channels: { email: false, sms: false, whatsapp: false, push: false },
-    totalSent: 0,
-    successRate: 0,
+    channels: { email: false, sms: false, whatsapp: false, push: true },
+    totalSent: 312,
+    successRate: 99,
     ...blankChannelData,
+    push: {
+      title: 'Account Approved!',
+      body: 'Hi {{member_name}}, your Lupin Loyalty account has been approved. Start earning points today!',
+      deepLink: '/home',
+      image: '',
+    },
+    perf: {
+      ...blankPerf,
+      push: { sent: 312, successRate: 99.0 },
+    },
     createdOn: '12 Jul, 2022',
     lastEdited: '02 Apr, 2024',
     lastEditedBy: 'Purushotham',
@@ -73,10 +92,20 @@ const initialTemplates = [
     event: 'user_approval_rejected',
     sensitive: false,
     enabled: false,
-    channels: { email: false, sms: false, whatsapp: false, push: false },
-    totalSent: 0,
-    successRate: 0,
+    channels: { email: false, sms: false, whatsapp: false, push: true },
+    totalSent: 58,
+    successRate: 96,
     ...blankChannelData,
+    push: {
+      title: 'Account Update',
+      body: 'Hi {{member_name}}, your account application could not be approved at this time. Please contact support for assistance.',
+      deepLink: '/support',
+      image: '',
+    },
+    perf: {
+      ...blankPerf,
+      push: { sent: 58, successRate: 96.6 },
+    },
     createdOn: '12 Jul, 2022',
     lastEdited: '02 Apr, 2024',
     lastEditedBy: 'Purushotham',
@@ -88,10 +117,20 @@ const initialTemplates = [
     event: 'claim_approved',
     sensitive: false,
     enabled: true,
-    channels: { email: false, sms: false, whatsapp: false, push: false },
-    totalSent: 0,
-    successRate: 0,
+    channels: { email: false, sms: false, whatsapp: false, push: true },
+    totalSent: 1240,
+    successRate: 97,
     ...blankChannelData,
+    push: {
+      title: 'Claim Approved!',
+      body: 'Hi {{member_name}}, your claim of ₹{{amount}} has been approved. Points will be credited within 24 hours.',
+      deepLink: '/claims/{{claim_id}}',
+      image: '',
+    },
+    perf: {
+      ...blankPerf,
+      push: { sent: 1240, successRate: 97.2 },
+    },
     createdOn: '04 Sep, 2022',
     lastEdited: '11 Mar, 2025',
     lastEditedBy: 'Purushotham',
@@ -103,10 +142,20 @@ const initialTemplates = [
     event: 'claim_rejected',
     sensitive: false,
     enabled: true,
-    channels: { email: false, sms: false, whatsapp: false, push: false },
-    totalSent: 0,
-    successRate: 0,
+    channels: { email: false, sms: false, whatsapp: false, push: true },
+    totalSent: 847,
+    successRate: 94,
     ...blankChannelData,
+    push: {
+      title: 'Claim Update',
+      body: 'Hi {{member_name}}, your claim of ₹{{amount}} could not be processed. Reason: {{reason}}. Visit the app for details.',
+      deepLink: '/claims/{{claim_id}}',
+      image: '',
+    },
+    perf: {
+      ...blankPerf,
+      push: { sent: 847, successRate: 94.1 },
+    },
     createdOn: '04 Sep, 2022',
     lastEdited: '11 Mar, 2025',
     lastEditedBy: 'Purushotham',
@@ -118,10 +167,20 @@ const initialTemplates = [
     event: 'new_schemes_launched',
     sensitive: false,
     enabled: true,
-    channels: { email: false, sms: false, whatsapp: false, push: false },
-    totalSent: 0,
-    successRate: 0,
+    channels: { email: false, sms: false, whatsapp: false, push: true },
+    totalSent: 2150,
+    successRate: 99,
     ...blankChannelData,
+    push: {
+      title: 'New Scheme Available!',
+      body: 'Hi {{member_name}}, {{scheme_name}} is now live until {{end_date}}. Start earning extra points today!',
+      deepLink: '/schemes/{{scheme_id}}',
+      image: '',
+    },
+    perf: {
+      ...blankPerf,
+      push: { sent: 2150, successRate: 98.6 },
+    },
     createdOn: '20 Apr, 2024',
     lastEdited: '02 May, 2025',
     lastEditedBy: 'Purushotham',
@@ -138,6 +197,10 @@ const initialTemplates = [
     successRate: 100,
     ...blankChannelData,
     sms: { body: 'Hi {{member_name}}, your OTP is {{otp}}. Do not share with anyone.' },
+    perf: {
+      ...blankPerf,
+      sms: { sent: 33, successRate: 100 },
+    },
     createdOn: '15 Jan, 2023',
     lastEdited: '04 May, 2026',
     lastEditedBy: 'Purushotham',
@@ -166,6 +229,7 @@ export function StoreProvider({ children }) {
       return [{
         totalSent: 0,
         successRate: 0,
+        perf: { ...blankPerf },
         ...tpl,
         id: tpl.id || `TPL-${Math.floor(Math.random() * 90000 + 10000)}`,
       }, ...prev];
