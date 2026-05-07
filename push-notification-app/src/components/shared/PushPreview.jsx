@@ -1,7 +1,7 @@
 import { Bell } from 'lucide-react';
 
 export default function PushPreview({ title, body, image }) {
-  const previewTitle = title || 'Notification title';
+  const previewTitle = title || 'Notification Title';
   const previewBody = body || 'Your notification body will preview here.';
   return (
     <div className="bg-[#1c1f2e] rounded-2xl p-4 w-full">
@@ -11,10 +11,6 @@ export default function PushPreview({ title, body, image }) {
           <Bell size={18} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-[12px] font-semibold text-text truncate">Lupin Loyalty</div>
-            <div className="text-[10px] text-text-secondary shrink-0">now</div>
-          </div>
           <div className="text-[13px] font-semibold text-text truncate">{previewTitle}</div>
           <div className="text-[12px] text-text-muted line-clamp-3">{previewBody}</div>
           {image && (

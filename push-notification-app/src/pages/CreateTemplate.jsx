@@ -52,7 +52,8 @@ export default function CreateTemplate({ mode = 'create' }) {
     return !!d.body;
   };
 
-  const canSubmit = form.name.trim() && form.event && CHANNELS.some((c) => form.channels[c.id]);
+  const eventRequired = form.type === 'Transactional';
+  const canSubmit = form.name.trim() && (!eventRequired || form.event) && CHANNELS.some((c) => form.channels[c.id]);
 
   const handleSubmit = () => setConfirmOpen(true);
 
@@ -90,50 +91,67 @@ export default function CreateTemplate({ mode = 'create' }) {
               />
             </Field>
 
-            <div className="grid grid-cols-2 gap-6">
-              <Field label="Template Type" required>
-                <div className="flex items-center gap-6 pt-2">
-                  {['Promotional', 'Transactional'].map((t) => (
-                    <label key={t} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        checked={form.type === t}
-                        onChange={() => update('type', t)}
-                        className="accent-[var(--color-primary)] w-4 h-4"
-                      />
-                      <span className="text-[14px] text-text">{t}</span>
-                    </label>
-                  ))}
+            <Field label="Template Type" required>
+              <div className="flex items-center gap-6 pt-2">
+                {['Promotional', 'Transactional'].map((t) => (
+                  <label key={t} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={form.type === t}
+                      onChange={() => { update('type', t); if (t === 'Promotional') update('event', ''); }}
+                      className="accent-[var(--color-primary)] w-4 h-4"
+                    />
+                    <span className="text-[14px] text-text">{t}</span>
+                  </label>
+                ))}
+              </div>
+            </Field>
+
+            {form.type === 'Transactional' && (
+              <Field label="Event" required>
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-1">
+                    <button
+                      type="button"
+                      onClick={() => setEventOpen((o) => !o)}
+                      className="input flex items-center justify-between text-left w-full"
+                    >
+                      <span className={form.event ? 'text-text' : 'text-text-secondary'}>
+                        {form.event ? EVENTS.find((e) => e.value === form.event)?.label : 'Select Event'}
+                      </span>
+                      <ChevronDown size={16} className="text-text-secondary" />
+                    </button>
+                    {eventOpen && (
+                      <div className="absolute left-0 top-full mt-1 w-full bg-surface border border-border rounded-lg shadow-lg z-10 max-h-[260px] overflow-y-auto">
+                        <div
+                          onClick={() => { setEventOpen(false); showToast('Add new event coming soon.'); }}
+                          className="px-3 py-2 text-[14px] text-primary font-medium hover:bg-surface-soft cursor-pointer border-b border-border-soft"
+                        >
+                          + Add New Event
+                        </div>
+                        {EVENTS.map((e) => (
+                          <div
+                            key={e.value}
+                            onClick={() => { update('event', e.value); setEventOpen(false); }}
+                            className="px-3 py-2 text-[14px] hover:bg-surface-soft text-text cursor-pointer"
+                          >
+                            <div>{e.label}</div>
+                            <div className="text-[11px] text-text-secondary">{e.group}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => showToast('Manage Events coming soon.')}
+                    className="border border-primary text-primary text-[13px] font-medium px-4 py-2 rounded cursor-pointer hover:bg-primary-soft shrink-0"
+                  >
+                    Manage Events
+                  </button>
                 </div>
               </Field>
-
-              <Field label="Event" required>
-                <button
-                  type="button"
-                  onClick={() => setEventOpen((o) => !o)}
-                  className="input flex items-center justify-between text-left relative"
-                >
-                  <span className={form.event ? 'text-text' : 'text-text-secondary'}>
-                    {form.event ? EVENTS.find((e) => e.value === form.event)?.label : 'Select Event'}
-                  </span>
-                  <ChevronDown size={16} className="text-text-secondary" />
-                  {eventOpen && (
-                    <div className="absolute left-0 top-full mt-1 w-full bg-surface border border-border rounded-lg shadow-lg z-10 max-h-[260px] overflow-y-auto">
-                      {EVENTS.map((e) => (
-                        <div
-                          key={e.value}
-                          onClick={() => { update('event', e.value); setEventOpen(false); }}
-                          className="px-3 py-2 text-[14px] hover:bg-surface-soft text-text"
-                        >
-                          <div>{e.label}</div>
-                          <div className="text-[11px] text-text-secondary">{e.group}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </button>
-              </Field>
-            </div>
+            )}
 
             <label className="flex items-center gap-2 cursor-pointer pt-1">
               <input
@@ -264,7 +282,7 @@ export default function CreateTemplate({ mode = 'create' }) {
 
 function Section({ title, children }) {
   return (
-    <div className="bg-surface rounded-lg overflow-hidden">
+    <div className="bg-surface rounded-lg">
       <div className="px-4 py-4 border-b border-border-soft text-[16px] font-semibold text-text">{title}</div>
       <div className="px-4 py-5 flex flex-col gap-4">{children}</div>
     </div>

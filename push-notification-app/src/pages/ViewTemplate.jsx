@@ -372,8 +372,60 @@ function ChannelPreview({ channel, data, templateName, onClose }) {
 }
 
 function PhoneMockup({ channel, data }) {
+  if (channel === 'push') {
+    const displayTitle = data?.title || 'Notification Title';
+    const displayBody  = data?.body  || 'Your notification body will preview here.';
+    return (
+      <div className="relative mx-auto select-none" style={{ width: 300 }}>
+        {/* Side buttons */}
+        <div className="absolute left-[-6px] top-[120px] w-[3px] h-[28px] bg-[#3a3a3a] rounded-l" />
+        <div className="absolute left-[-6px] top-[160px] w-[3px] h-[44px] bg-[#3a3a3a] rounded-l" />
+        <div className="absolute left-[-6px] top-[216px] w-[3px] h-[44px] bg-[#3a3a3a] rounded-l" />
+        <div className="absolute right-[-6px] top-[160px] w-[3px] h-[60px] bg-[#3a3a3a] rounded-r" />
+        <div className="rounded-[50px] border-[10px] border-[#1c1c1e] overflow-hidden shadow-[0_30px_80px_rgba(0,0,0,0.7)]" style={{ minHeight: 620 }}>
+          <div className="flex flex-col" style={{
+            minHeight: 600,
+            background: 'radial-gradient(ellipse at 50% 30%, #4a3f8a 0%, #2d1f6e 30%, #1a0f4f 60%, #0a0520 100%)',
+          }}>
+            {/* Date + Time */}
+            <div className="text-center mt-10">
+              <div className="text-white/80 text-[15px] font-light tracking-wide">Wednesday, May 7</div>
+              <div className="text-white font-normal mt-1" style={{ fontSize: 78, lineHeight: 1, letterSpacing: -3 }}>9:41</div>
+            </div>
+            {/* Spacer */}
+            <div className="flex-1" />
+            {/* Notification card */}
+            <div className="mx-3 mb-4">
+              <div className="rounded-2xl px-2.5 py-2.5 flex gap-2 items-center" style={{ background: 'rgba(235,235,245,0.22)', backdropFilter: 'blur(20px)' }}>
+                <div className="w-[38px] h-[38px] rounded-[9px] bg-[#0070FF] flex items-center justify-center shrink-0">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="white"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="text-white font-semibold leading-tight" style={{ fontSize: 11 }}>{displayTitle}</div>
+                    <span className="text-white/50 shrink-0" style={{ fontSize: 9, marginTop: 1 }}>now</span>
+                  </div>
+                  <div className="text-white/80 mt-0.5 leading-snug line-clamp-3" style={{ fontSize: 10 }}>{displayBody}</div>
+                </div>
+              </div>
+            </div>
+            {/* Home indicator */}
+            <div className="flex justify-center pb-4 pt-6">
+              <div className="w-28 h-[5px] rounded-full bg-white/40" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ width: 300 }}>
+    <div className="relative" style={{ width: 300 }}>
+      {/* Side buttons */}
+      <div className="absolute left-[-10px] top-[100px] w-[4px] h-[32px] bg-[#2a2a2a] rounded-l-sm" />
+      <div className="absolute left-[-10px] top-[144px] w-[4px] h-[48px] bg-[#2a2a2a] rounded-l-sm" />
+      <div className="absolute left-[-10px] top-[204px] w-[4px] h-[48px] bg-[#2a2a2a] rounded-l-sm" />
+      <div className="absolute right-[-10px] top-[144px] w-[4px] h-[64px] bg-[#2a2a2a] rounded-r-sm" />
       <div className="rounded-[44px] border-[10px] border-[#2a2a2a] bg-[#2a2a2a] shadow-2xl overflow-hidden flex flex-col" style={{ minHeight: 600 }}>
         {/* Notch bar */}
         <div className="relative shrink-0" style={{ background: '#fff' }}>
@@ -389,11 +441,6 @@ function PhoneMockup({ channel, data }) {
         </div>
 
         {/* Screen content */}
-        {channel === 'push' && (
-          <div className="flex-1 px-3 pt-2 pb-4" style={{ background: '#f5f5f7' }}>
-            <PushPreview title={data?.title} body={data?.body} image={data?.image} />
-          </div>
-        )}
         {channel === 'sms' && (
           <div className="flex-1 flex flex-col" style={{ background: '#fff' }}>
             {/* Sender header */}
@@ -432,7 +479,7 @@ function PhoneMockup({ channel, data }) {
         )}
 
         {/* Home bar */}
-        <div className="shrink-0 flex items-center justify-center py-2" style={{ background: channel === 'push' ? '#f5f5f7' : '#fff' }}>
+        <div className="shrink-0 flex items-center justify-center py-2" style={{ background: '#fff' }}>
           <div className="w-20 h-1 rounded-full bg-gray-400/40" />
         </div>
       </div>
